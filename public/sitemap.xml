@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Main Homepage / Workspace Core -->
+  <url>
+    <loc>https://ai-toolbox-pro.com/</loc>
+    <lastmod>2026-07-05</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  
+  <!-- About Us Section -->
+  <url>
+    <loc>https://ai-toolbox-pro.com/about-us</loc>
+    <lastmod>2026-07-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Help / Frequently Asked Questions -->
+  <url>
+    <loc>https://ai-toolbox-pro.com/faq</loc>
+    <lastmod>2026-07-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Contact Us / Customer Support Portal -->
+  <url>
+    <loc>https://ai-toolbox-pro.com/contact</loc>
+    <lastmod>2026-07-05</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <!-- Legal: Privacy Policy Document -->
+  <url>
+    <loc>https://ai-toolbox-pro.com/privacy-policy</loc>
+    <lastmod>2026-07-05</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+
+  <!-- Legal: Terms & Conditions Agreement -->
+  <url>
+    <loc>https://ai-toolbox-pro.com/terms-and-conditions</loc>
+    <lastmod>2026-07-05</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+</urlset>

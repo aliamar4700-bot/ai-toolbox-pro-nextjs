@@ -1,0 +1,8 @@
+# robots.txt for AI Toolbox Pro
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+
+# Specify the dynamic sitemap location
+Sitemap: https://ai-toolbox-pro.com/sitemap.xml
