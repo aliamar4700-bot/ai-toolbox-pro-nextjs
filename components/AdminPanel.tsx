@@ -322,7 +322,7 @@ export default function AdminPanel({ state, onUpdateState }: AdminPanelProps) {
 
                   <div className="flex items-center gap-2 self-end sm:self-auto font-mono text-[10px]">
                     <button 
-                      onClick={() => handleTogglePlan(usr.uid)}
+                      onClick={() => handleTogglePlan(usr.uid!)}
                       className={`h-7 px-3 rounded-lg border transition-all ${usr.subscription === 'pro' ? 'bg-brand-purple/20 border-brand-purple/40 text-brand-purple font-bold' : 'bg-brand-graphite border-white/5 text-gray-400'}`}
                     >
                       Plan: {usr.subscription.toUpperCase()}
