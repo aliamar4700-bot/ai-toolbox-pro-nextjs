@@ -307,12 +307,12 @@ export default function AdminPanel({ state, onUpdateState }: AdminPanelProps) {
             <div className="space-y-3.5 text-xs">
               {state.users.map((usr) => (
                 <div 
-                  key={usr.uid} 
+                  key={usr.uid || usr.email} 
                   className="p-3.5 bg-brand-black border border-white/5 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3"
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-white text-sm">{usr.displayName}</span>
+                      <span className="font-semibold text-white text-sm">{usr.displayName || usr.name || "Anonymous User"}</span>
                       <span className={`px-2 py-0.5 rounded text-[9px] font-mono tracking-wide uppercase font-bold ${usr.role === 'admin' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-brand-neon-blue/10 text-brand-neon-blue border border-brand-neon-blue/20'}`}>
                         {usr.role}
                       </span>
@@ -322,14 +322,14 @@ export default function AdminPanel({ state, onUpdateState }: AdminPanelProps) {
 
                   <div className="flex items-center gap-2 self-end sm:self-auto font-mono text-[10px]">
                     <button 
-                      onClick={() => handleTogglePlan(usr.uid!)}
+                      onClick={() => usr.uid && handleTogglePlan(usr.uid)}
                       className={`h-7 px-3 rounded-lg border transition-all ${usr.subscription === 'pro' ? 'bg-brand-purple/20 border-brand-purple/40 text-brand-purple font-bold' : 'bg-brand-graphite border-white/5 text-gray-400'}`}
                     >
-                      Plan: {usr.subscription.toUpperCase()}
+                      Plan: {(usr.subscription || "free").toUpperCase()}
                     </button>
                     
                     <button 
-                      onClick={() => handleDeleteUser(usr.uid)}
+                      onClick={() => usr.uid && handleDeleteUser(usr.uid)}
                       className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                       title="Revoke access"
                     >

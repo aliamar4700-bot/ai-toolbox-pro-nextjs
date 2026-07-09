@@ -114,6 +114,9 @@ export default function AiTools({
   const [compressedImageSrc, setCompressedImageSrc] = useState<string | null>(null);
   const [origImageSize, setOrigImageSize] = useState<string | null>(null);
   const [newImageSize, setNewImageSize] = useState<string | null>(null);
+  const [compressPreviewUrl, setCompressPreviewUrl] = useState<string | null>(null);
+  const [compressPreviewLoading, setCompressPreviewLoading] = useState(false);
+  const [compressPreviewError, setCompressPreviewError] = useState<string | null>(null);
 
   // QR Code Generator State
   const [qrType, setQrType] = useState<"url" | "text" | "wifi" | "vcard">("url");
@@ -440,10 +443,46 @@ ${captionForm.includeEmojis ? "👇 Check it out in the link below! #AIToolbox #
     }, 1000);
   };
 
+  // Cleanup preview URL to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (compressPreviewUrl) {
+        URL.revokeObjectURL(compressPreviewUrl);
+      }
+    };
+  }, [compressPreviewUrl]);
+
   // Tool 9: Image Compressor Handler
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Revoke old object URL if exists to prevent memory leaks
+      if (compressPreviewUrl) {
+        URL.revokeObjectURL(compressPreviewUrl);
+      }
+
+      setCompressPreviewLoading(true);
+      setCompressPreviewError(null);
+
+      try {
+        const objectUrl = URL.createObjectURL(file);
+        setCompressPreviewUrl(objectUrl);
+
+        // Preload/verify image to update loading and error states correctly
+        const img = new window.Image();
+        img.src = objectUrl;
+        img.onload = () => {
+          setCompressPreviewLoading(false);
+        };
+        img.onerror = () => {
+          setCompressPreviewError("Failed to load uploaded image preview.");
+          setCompressPreviewLoading(false);
+        };
+      } catch (err) {
+        setCompressPreviewError("Could not generate image preview.");
+        setCompressPreviewLoading(false);
+      }
+
       setCompressImage(file);
       setOrigImageSize(`${(file.size / 1024).toFixed(1)} KB`);
       setCompressedImageSrc(null);
@@ -1371,10 +1410,36 @@ ${svgModules}</svg>`;
               </div>
 
               {compressImage && (
-                <div className="p-3 bg-brand-black/40 rounded-xl space-y-2.5">
-                  <p className="text-[10px] text-gray-500 font-mono">IMAGE CONTEXT:</p>
-                  <p className="text-white truncate">📄 {compressImage.name}</p>
-                  <p className="text-gray-400">Original Size: <span className="font-mono text-white font-bold">{origImageSize}</span></p>
+                <div className="space-y-3">
+                  {/* Uploaded Image Preview */}
+                  <div className="relative w-full bg-brand-black/50 border border-white/5 rounded-xl overflow-hidden flex items-center justify-center p-2 min-h-[150px] max-h-[350px]">
+                    {compressPreviewLoading && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-brand-black/80 space-y-2 z-10">
+                        <RefreshCw className="h-6 w-6 text-brand-neon-blue animate-spin" />
+                        <span className="text-[10px] text-gray-400">Reading image file...</span>
+                      </div>
+                    )}
+                    {compressPreviewError ? (
+                      <div className="text-center p-4 space-y-1">
+                        <p className="text-red-400 font-semibold text-xs">⚠️ {compressPreviewError}</p>
+                        <p className="text-[10px] text-gray-500">Please try uploading another image.</p>
+                      </div>
+                    ) : (
+                      compressPreviewUrl && (
+                        <img 
+                          src={compressPreviewUrl} 
+                          alt="Uploaded Preview" 
+                          className="max-h-[330px] w-full object-contain rounded-lg"
+                        />
+                      )
+                    )}
+                  </div>
+
+                  <div className="p-3 bg-brand-black/40 rounded-xl space-y-2.5">
+                    <p className="text-[10px] text-gray-500 font-mono">IMAGE CONTEXT:</p>
+                    <p className="text-white truncate">📄 {compressImage.name}</p>
+                    <p className="text-gray-400">Original Size: <span className="font-mono text-white font-bold">{origImageSize}</span></p>
+                  </div>
                 </div>
               )}
 
