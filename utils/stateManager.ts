@@ -169,6 +169,7 @@ export function loadState(): PlatformState {
       return INITIAL_STATE;
     }
     const parsed = JSON.parse(serialized);
+    // Backward compatibility merge
     return { ...INITIAL_STATE, ...parsed };
   } catch (error) {
     console.error("Failed to load local storage state:", error);

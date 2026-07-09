@@ -19,6 +19,7 @@ import {
   Settings,
   Grid
 } from "lucide-react";
+import { BUSINESS_CONFIG } from "../config";
 
 interface FAQPageProps {
   onBackToHome?: () => void;
@@ -57,7 +58,7 @@ export default function FAQPage({ onBackToHome }: FAQPageProps) {
       id: "resume-variants",
       category: "ai-resumes",
       question: "Can I generate multiple tailored resumes for different job descriptions?",
-      answer: "Absolutely! With AI Toolbox Pro, you can preserve your master profile credentials and generate unlimited custom tailored variations optimized for distinct job postings, titles, and company profiles in just a few clicks."
+      answer: "Absolutely! You can preserve your master profile credentials and generate unlimited custom tailored variations optimized for distinct job postings, titles, and company profiles in just a few clicks."
     },
     {
       id: "email-writer",
@@ -126,21 +127,21 @@ export default function FAQPage({ onBackToHome }: FAQPageProps) {
     {
       id: "sub-upgrades",
       category: "account",
-      question: "Can I upgrade, downgrade, or cancel my SaaS subscription plan at any time?",
-      answer: "Yes, you can manage your membership status anytime via your Account settings. Upgrades take effect instantly with pro-rata billing, while cancellations stop renewal for the following billing period."
+      question: "Are there any hidden premium plans or limits?",
+      answer: "No, we have fully removed our billing gateways and subscription tiers. All features, high-DPI document exports, and processing layers are 100% free with unlimited access for every developer and creator."
     },
     {
       id: "dev-keys",
       category: "account",
       question: "Do you offer API keys for developer integration of these productivity tools?",
-      answer: "Yes, enterprise and professional tier users can generate private API keys in the Account Settings panel to programmatically leverage our file compression, PDF rendering, and AI content models in their own applications."
+      answer: "Yes, you can generate private API keys in the Account Settings panel to programmatically leverage our file compression, PDF rendering, and AI content models in your own applications completely free of charge."
     },
 
     // Category: Privacy & Security
     {
       id: "model-training",
       category: "security",
-      question: "Does AI Toolbox Pro train public AI models using my input text or files?",
+      question: "Does AI Toolbox train public AI models using my input text or files?",
       answer: "Absolutely not. We maintain a zero-training privacy standard. All textual inputs, PDF contents, and resume queries are processed through private corporate API endpoints (such as the Google Gemini API with training opt-out), ensuring your data is never used to train public models."
     },
     {
@@ -152,8 +153,8 @@ export default function FAQPage({ onBackToHome }: FAQPageProps) {
     {
       id: "billing-security",
       category: "security",
-      question: "Is my credit card and billing metadata secure on your website?",
-      answer: "Yes, completely. We do not store or process payment card data on our servers. All transaction details are routed directly through globally recognized, PCI-DSS compliant partner gateways using encrypted tokens."
+      question: "Do I need to link a credit card or payment method?",
+      answer: "No, never! AI Toolbox is completely free. We do not ask for credit cards, payment tokens, or any billing metadata. There are absolutely zero billing paths on this platform."
     },
     {
       id: "data-encryption",
@@ -173,7 +174,7 @@ export default function FAQPage({ onBackToHome }: FAQPageProps) {
       id: "support-hours",
       category: "tech",
       question: "What are your standard support hours, and how do I open a support ticket?",
-      answer: "Our support operations run 24/7. You can submit a support ticket instantly using our built-in 'Contact Support' portal, or email us directly at support@example.com. Enterprise users receive priority handling with SLAs under 1 hour."
+      answer: `Our support operations run 24/7. You can submit a support ticket instantly using our built-in 'Contact Support' portal, or email us directly at ${BUSINESS_CONFIG.email}. Enterprise users receive priority handling with SLAs under 1 hour.`
     }
   ];
 

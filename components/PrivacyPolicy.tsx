@@ -6,7 +6,6 @@ import {
   Lock, 
   Eye, 
   Cookie, 
-  Activity, 
   Database, 
   Sliders, 
   UserCheck, 
@@ -20,6 +19,7 @@ import {
   Percent,
   TrendingUp
 } from "lucide-react";
+import { BUSINESS_CONFIG } from "../config";
 
 interface PrivacyPolicyProps {
   onBackToHome?: () => void;
@@ -58,7 +58,7 @@ export default function PrivacyPolicy({ onBackToHome }: PrivacyPolicyProps) {
           </p>
           <ul className="list-disc list-inside space-y-2 text-gray-300 ml-2">
             <li>
-              <strong className="text-white">Account Data:</strong> Contact information, including email address, full name, and billing details provided during manual account registration or OAuth authentication.
+              <strong className="text-white">Account Data:</strong> Contact information, including email address and full name provided during manual account registration or OAuth authentication.
             </li>
             <li>
               <strong className="text-white">Input Metadata & Content:</strong> Text, files, images, and other prompt metadata that you actively upload or paste into our AI tools (e.g., resumes, cover letter text, or images for compression). This content is processed in real-time to return the computed results.
@@ -131,7 +131,7 @@ export default function PrivacyPolicy({ onBackToHome }: PrivacyPolicyProps) {
     },
     {
       id: "analytics",
-      icon: <Activity className="h-5 w-5 text-brand-purple" />,
+      icon: <TrendingUp className="h-5 w-5 text-brand-purple" />,
       title: "6. Google Analytics",
       content: (
         <div className="space-y-3">
@@ -247,18 +247,8 @@ export default function PrivacyPolicy({ onBackToHome }: PrivacyPolicyProps) {
           <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-2.5 font-mono text-xs">
             <p className="flex items-center gap-2">
               <span className="text-gray-400">Compliance Email:</span>
-              <a href="mailto:support@example.com" className="text-brand-neon-blue hover:underline">
-                support@example.com
-              </a>
-            </p>
-            <p className="flex items-center gap-2">
-              <span className="text-gray-400">Corporate Address:</span>
-              <span className="text-white">Business Address Here</span>
-            </p>
-            <p className="flex items-center gap-2">
-              <span className="text-gray-400">Support Line:</span>
-              <a href="tel:+000000000000" className="text-white hover:underline">
-                +00 000 0000000
+              <a href={`mailto:${BUSINESS_CONFIG.email}`} className="text-brand-neon-blue hover:underline">
+                {BUSINESS_CONFIG.email}
               </a>
             </p>
           </div>

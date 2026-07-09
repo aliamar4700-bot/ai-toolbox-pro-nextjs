@@ -9,7 +9,8 @@ import {
   Tooltip as RechartsTooltip, 
   ResponsiveContainer,
   AreaChart,
-  Area
+  Area,
+  CartesianGrid
 } from "recharts";
 import { 
   FileText, 
@@ -21,10 +22,13 @@ import {
   Play, 
   File, 
   FolderHeart,
+  ChevronRight,
   Eye,
+  CheckCircle,
+  Clock,
   Sparkles
 } from "lucide-react";
-import { PlatformState, SavedFile, DownloadHistory } from "../app/types";
+import { PlatformState, SavedFile, RecentActivity, DownloadHistory } from "../app/types";
 import { exportToPDF, exportToTXT } from "../utils/exporter";
 
 interface DashboardProps {
@@ -43,11 +47,13 @@ export default function Dashboard({
   const [activeTab, setActiveTab] = React.useState<"saved" | "downloads" | "activity">("saved");
   const [previewFile, setPreviewFile] = React.useState<SavedFile | null>(null);
 
+  // Compute stats
   const totalGenerations = state.savedFiles.length + state.downloads.length;
   const favoriteTools = state.favorites;
   const savedCount = state.savedFiles.length;
   const downloadCount = state.downloads.length;
 
+  // Chart data: Usage counts
   const chartData = Object.entries(state.usageCount).map(([key, val]) => {
     let name = "Tool";
     if (key === "tool-resume") name = "Resume";
@@ -63,6 +69,7 @@ export default function Dashboard({
     return { name, usage: val };
   });
 
+  // Trend data: Simulated last 5 days
   const trendData = [
     { day: "Mon", runs: 12 },
     { day: "Tue", runs: 18 },
@@ -80,6 +87,7 @@ export default function Dashboard({
       exportToTXT(`${file.title.replace(/\s+/g, "_")}.txt`, file.content);
     }
 
+    // Add download record
     const newDownload: DownloadHistory = {
       id: `dl-${Date.now()}`,
       filename: `${file.title.replace(/\s+/g, "_")}.${file.format.toLowerCase()}`,
@@ -92,6 +100,20 @@ export default function Dashboard({
       ...state,
       downloads: [newDownload, ...state.downloads]
     });
+  };
+
+  const getToolIdFromType = (type: string): string => {
+    if (type === "AI Resume Builder") return "tool-resume";
+    if (type === "AI Cover Letter Generator") return "tool-cover";
+    if (type === "AI Email Writer") return "tool-email";
+    if (type === "AI Bio Generator") return "tool-bio";
+    if (type === "AI Caption Generator") return "tool-caption";
+    if (type === "AI Study Notes Generator") return "tool-notes";
+    if (type === "AI Habit Tracker") return "tool-habit";
+    if (type === "AI PDF Tools") return "tool-pdf";
+    if (type === "Image Compressor") return "tool-compress";
+    if (type === "QR Code Generator") return "tool-qr";
+    return "tools";
   };
 
   return (

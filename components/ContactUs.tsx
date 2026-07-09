@@ -3,19 +3,17 @@
 import React, { useState } from "react";
 import { 
   Mail, 
-  Phone, 
-  MapPin, 
-  Globe, 
   Send, 
   CheckCircle, 
   Sparkles, 
-  Twitter, 
-  Linkedin, 
-  Github, 
   HelpCircle,
-  MessageSquare
+  MessageSquare,
+  ShieldAlert,
+  RefreshCw
 } from "lucide-react";
 import { PlatformState, ContactMessage } from "../app/types";
+import { sanitizeInput, validateEmail } from "../utils/security";
+import { BUSINESS_CONFIG } from "../config";
 
 interface ContactUsProps {
   state: PlatformState;
@@ -29,17 +27,47 @@ export default function ContactUs({ state, onUpdateState }: ContactUsProps) {
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   
+  // Spam protection state (Dynamic Math Equation)
+  const [captchaNum1, setCaptchaNum1] = useState(() => Math.floor(Math.random() * 9) + 1);
+  const [captchaNum2, setCaptchaNum2] = useState(() => Math.floor(Math.random() * 9) + 1);
+  const [captchaAnswer, setCaptchaAnswer] = useState("");
+
   // Status States
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  const regenerateCaptcha = () => {
+    setCaptchaNum1(Math.floor(Math.random() * 9) + 1);
+    setCaptchaNum2(Math.floor(Math.random() * 9) + 1);
+    setCaptchaAnswer("");
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
 
-    if (!fullName.trim() || !email.trim() || !subject.trim() || !message.trim()) {
+    const safeName = sanitizeInput(fullName);
+    const safeEmail = sanitizeInput(email);
+    const safeSubject = sanitizeInput(subject);
+    const safeMessage = sanitizeInput(message);
+
+    // Validation
+    if (!safeName.trim() || !safeEmail.trim() || !safeSubject.trim() || !safeMessage.trim()) {
       setErrorMessage("Please fill in all the required form fields.");
+      return;
+    }
+
+    if (!validateEmail(safeEmail)) {
+      setErrorMessage("Please enter a valid and secure email address format.");
+      return;
+    }
+
+    // Spam Protection Verification
+    const parsedAnswer = parseInt(captchaAnswer.trim(), 10);
+    if (isNaN(parsedAnswer) || parsedAnswer !== (captchaNum1 + captchaNum2)) {
+      setErrorMessage("Spam protection challenge failed. Please verify the simple math calculation.");
+      regenerateCaptcha();
       return;
     }
 
@@ -47,13 +75,13 @@ export default function ContactUs({ state, onUpdateState }: ContactUsProps) {
 
     try {
       // Simulate API submit latency
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      await new Promise((resolve) => setTimeout(resolve, 850));
 
       const newMessage: ContactMessage = {
         id: `msg-${Date.now()}`,
-        name: fullName,
-        email: email,
-        message: `Subject: ${subject}\n\nMessage: ${message}`,
+        name: safeName,
+        email: safeEmail,
+        message: `Subject: ${safeSubject}\n\nMessage: ${safeMessage}`,
         date: new Date().toISOString()
       };
 
@@ -61,7 +89,7 @@ export default function ContactUs({ state, onUpdateState }: ContactUsProps) {
       const newActivity = {
         id: `act-${Date.now()}`,
         action: "Contact Form Submit",
-        details: `Message received from ${fullName} (${email}) - Subject: "${subject}"`,
+        details: `Message received from ${safeName} (${safeEmail}) - Subject: "${safeSubject}"`,
         timestamp: new Date().toISOString()
       };
 
@@ -77,6 +105,8 @@ export default function ContactUs({ state, onUpdateState }: ContactUsProps) {
       setEmail("");
       setSubject("");
       setMessage("");
+      setCaptchaAnswer("");
+      regenerateCaptcha();
       setSubmitSuccess(true);
       
       // Auto dismiss success toast after 8 seconds
@@ -124,7 +154,7 @@ export default function ContactUs({ state, onUpdateState }: ContactUsProps) {
           Contact Our <span className="bg-gradient-to-r from-brand-neon-blue to-brand-purple bg-clip-text text-transparent">Support Team</span>
         </h1>
         <p className="text-gray-400 text-sm sm:text-base max-w-xl mx-auto">
-          Have queries about custom models, billing issues, or technical integration? Reach out to our dedicated support desk.
+          Have queries about custom utilities, feature requests, or technical integrations? Reach out to our dedicated support desk.
         </p>
       </section>
 
@@ -141,7 +171,7 @@ export default function ContactUs({ state, onUpdateState }: ContactUsProps) {
               Corporate Touchpoints
             </h3>
 
-            {/* Support details with standard easy-to-replace placeholders */}
+            {/* Support details with dynamic config email */}
             <div className="space-y-6">
               
               {/* Support Email */}
@@ -149,69 +179,14 @@ export default function ContactUs({ state, onUpdateState }: ContactUsProps) {
                 <div className="h-10 w-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-brand-neon-blue group-hover:border-brand-neon-blue/30 transition-all shrink-0">
                   <Mail className="h-4.5 w-4.5" />
                 </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-gray-500 font-mono tracking-wider uppercase font-medium">Support Email</p>
-                  <a href="mailto:support@example.com" className="text-sm font-semibold text-white hover:text-brand-neon-blue transition-colors font-mono">
-                    support@example.com
+                <div className="space-y-1 min-w-0">
+                  <p className="text-xs text-gray-500 font-mono tracking-wider uppercase font-medium">Business Email</p>
+                  <a href={`mailto:${BUSINESS_CONFIG.email}`} className="text-sm font-semibold text-white hover:text-brand-neon-blue transition-colors font-mono block truncate">
+                    {BUSINESS_CONFIG.email}
                   </a>
                 </div>
               </div>
 
-              {/* Support Hotline */}
-              <div className="flex items-start gap-4 group">
-                <div className="h-10 w-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-brand-neon-blue group-hover:border-brand-neon-blue/30 transition-all shrink-0">
-                  <Phone className="h-4.5 w-4.5" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-gray-500 font-mono tracking-wider uppercase font-medium">Phone Support</p>
-                  <a href="tel:+000000000000" className="text-sm font-semibold text-white hover:text-brand-neon-blue transition-colors font-mono">
-                    +00 000 0000000
-                  </a>
-                </div>
-              </div>
-
-              {/* Physical Location */}
-              <div className="flex items-start gap-4 group">
-                <div className="h-10 w-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-brand-neon-blue group-hover:border-brand-neon-blue/30 transition-all shrink-0">
-                  <MapPin className="h-4.5 w-4.5" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-gray-500 font-mono tracking-wider uppercase font-medium">Business Address</p>
-                  <p className="text-sm font-semibold text-white leading-relaxed">
-                    Business Address Here
-                  </p>
-                </div>
-              </div>
-
-              {/* Main Website */}
-              <div className="flex items-start gap-4 group">
-                <div className="h-10 w-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-brand-neon-blue group-hover:border-brand-neon-blue/30 transition-all shrink-0">
-                  <Globe className="h-4.5 w-4.5" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-gray-500 font-mono tracking-wider uppercase font-medium">Primary Website</p>
-                  <a href="https://yourdomain.com" target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-white hover:text-brand-neon-blue transition-colors font-mono flex items-center gap-1">
-                    https://yourdomain.com
-                  </a>
-                </div>
-              </div>
-
-            </div>
-
-            {/* Social Media (using # links per instructions) */}
-            <div className="pt-6 border-t border-white/5">
-              <p className="text-xs text-gray-500 font-mono mb-3.5 tracking-wider uppercase font-medium">Find us on socials</p>
-              <div className="flex items-center gap-3">
-                <a href="#" className="h-9 w-9 rounded-lg bg-white/5 border border-white/10 hover:border-brand-neon-blue/50 hover:text-brand-neon-blue flex items-center justify-center transition-all cursor-pointer">
-                  <Twitter className="h-4 w-4" />
-                </a>
-                <a href="#" className="h-9 w-9 rounded-lg bg-white/5 border border-white/10 hover:border-brand-neon-blue/50 hover:text-brand-neon-blue flex items-center justify-center transition-all cursor-pointer">
-                  <Linkedin className="h-4 w-4" />
-                </a>
-                <a href="#" className="h-9 w-9 rounded-lg bg-white/5 border border-white/10 hover:border-brand-neon-blue/50 hover:text-brand-neon-blue flex items-center justify-center transition-all cursor-pointer">
-                  <Github className="h-4 w-4" />
-                </a>
-              </div>
             </div>
           </div>
 
@@ -248,14 +223,15 @@ export default function ContactUs({ state, onUpdateState }: ContactUsProps) {
 
             {/* Error Message Banner */}
             {errorMessage && (
-              <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-semibold">
-                {errorMessage}
+              <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-semibold flex items-start gap-2">
+                <ShieldAlert className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+                <span>{errorMessage}</span>
               </div>
             )}
 
             <div className="space-y-2">
               <h3 className="font-display font-bold text-lg text-white">Send a Direct Message</h3>
-              <p className="text-gray-400 text-xs">Complete the secure form parameters below to initiate a private tracking ticket.</p>
+              <p className="text-gray-400 text-xs">Complete the secure form parameters below to initiate a private support ticket.</p>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">
@@ -318,6 +294,37 @@ export default function ContactUs({ state, onUpdateState }: ContactUsProps) {
                 placeholder="Write your comprehensive message detailing how our tech desk can guide you..."
                 className="w-full bg-brand-black/60 border border-white/10 rounded-xl text-white text-xs pl-4 pr-4 py-3.5 focus:outline-none focus:border-brand-neon-blue focus:ring-1 focus:ring-brand-neon-blue/20 transition-all resize-none"
               />
+            </div>
+
+            {/* Spam Protection */}
+            <div className="space-y-2.5 p-4 bg-brand-black/40 rounded-xl border border-white/5">
+              <label className="text-[10px] font-bold text-gray-400 block font-mono uppercase tracking-wider">
+                Spam Verification Challenge <span className="text-brand-neon-blue font-bold">*</span>
+              </label>
+              <div className="flex flex-col sm:flex-row gap-3 items-center">
+                <div className="flex items-center gap-2 bg-brand-charcoal border border-white/10 px-3.5 py-2 rounded-lg text-xs font-mono select-none">
+                  <span className="text-white font-bold">{captchaNum1}</span>
+                  <span className="text-brand-neon-blue font-extrabold">+</span>
+                  <span className="text-white font-bold">{captchaNum2}</span>
+                  <span className="text-gray-400">=</span>
+                </div>
+                <input 
+                  type="text"
+                  required
+                  value={captchaAnswer}
+                  onChange={(e) => setCaptchaAnswer(e.target.value)}
+                  placeholder="Sum"
+                  className="w-full sm:w-24 bg-brand-black/60 border border-white/10 rounded-lg text-white text-xs px-3 py-2 focus:outline-none focus:border-brand-neon-blue font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={regenerateCaptcha}
+                  className="p-2 text-gray-500 hover:text-white transition-all rounded-lg hover:bg-white/5 cursor-pointer"
+                  title="Generate new calculation challenge"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             {/* Send Button */}

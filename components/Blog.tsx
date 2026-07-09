@@ -8,7 +8,13 @@ import {
   ArrowLeft, 
   ChevronRight, 
   Share2, 
-  Flame
+  Bookmark, 
+  Star,
+  User,
+  ExternalLink,
+  Flame,
+  CheckCircle,
+  Sparkles
 } from "lucide-react";
 import { BlogPost } from "../app/types";
 
@@ -44,6 +50,7 @@ export default function Blog({
     setTimeout(() => setCopied(false), 3000);
   };
 
+  // Render Deep Article Reading View
   if (selectedBlogPost) {
     const relatedPosts = blogPosts.filter(p => p.id !== selectedBlogPost.id && p.category === selectedBlogPost.category).slice(0, 2);
 
@@ -106,7 +113,7 @@ export default function Blog({
         <div className="glass-panel rounded-2xl p-6 sm:p-8 relative overflow-hidden flex flex-col sm:flex-row items-center justify-between gap-6 border-brand-purple/20 mt-12 bg-gradient-to-tr from-brand-charcoal to-brand-black">
           <div className="space-y-1 max-w-sm">
             <h4 className="font-display font-bold text-sm text-white">Loved this article?</h4>
-            <p className="text-gray-400 text-[11px]">Get our next optimization secrets delivered weekly.</p>
+            <p className="text-gray-400 text-[11px]">Get our next optimization secrets instantly delivered right to your inbox weekly.</p>
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
             <input type="email" placeholder="professional@email.com" className="bg-brand-black border border-white/10 rounded-lg text-xs px-3 py-2 w-full focus:outline-none focus:border-brand-purple text-white" />
@@ -118,13 +125,13 @@ export default function Blog({
         {relatedPosts.length > 0 && (
           <div className="pt-10 border-t border-white/5 space-y-6">
             <h3 className="font-display font-bold text-lg text-white flex items-center gap-1.5">
-              <Flame className="h-4 w-4 text-orange-500" /> Related Career Guides
+              <Flame className="h-4 w-4 text-orange-500 animate-pulse" /> Related Career Guides
             </h3>
             <div className="grid sm:grid-cols-2 gap-6">
               {relatedPosts.map((post) => (
                 <div 
                   key={post.id}
-                  onClick={() => { onSelectPost(post); }}
+                  onClick={() => { onSelectPost(post); window.scrollTo(0,0); }}
                   className="glass-panel glass-panel-hover rounded-2xl p-5 space-y-4 cursor-pointer"
                 >
                   <span className="text-[10px] font-mono font-bold text-brand-neon-blue uppercase">{post.category}</span>
@@ -191,7 +198,7 @@ export default function Blog({
           {filteredPosts.map((post) => (
             <article 
               key={post.id}
-              onClick={() => { onSelectPost(post); }}
+              onClick={() => { onSelectPost(post); window.scrollTo(0,0); }}
               className="glass-panel glass-panel-hover rounded-2xl p-5 flex flex-col justify-between cursor-pointer space-y-4"
             >
               <div className="space-y-3">
@@ -199,7 +206,7 @@ export default function Blog({
                   <span className="text-brand-neon-blue font-bold">{post.category}</span>
                   <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {post.readTime}</span>
                 </div>
-                <h3 className="font-semibold text-white hover:text-brand-neon-blue transition-colors text-sm line-clamp-2 leading-snug">
+                <h3 className="font-semibold text-white group-hover:text-brand-neon-blue transition-colors text-sm line-clamp-2 leading-snug">
                   {post.title}
                 </h3>
                 <p className="text-gray-400 text-xs leading-relaxed line-clamp-3">

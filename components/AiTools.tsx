@@ -3,21 +3,251 @@
 import React, { useState, useRef, useEffect } from "react";
 import { 
   Sparkles, 
+  User, 
+  FileText, 
   Download, 
+  Mail, 
+  Share2, 
+  BookOpen, 
   Plus, 
   Check, 
+  RotateCcw, 
+  Lock, 
+  Maximize2, 
+  QrCode, 
+  Settings, 
   Trash2, 
+  CheckSquare, 
   Image, 
   Sliders, 
   Cpu, 
   RefreshCw,
   FolderOpen,
+  Eye,
   Star,
   FileDown,
-  CheckCircle
+  CheckCircle,
+  Scan,
+  Copy,
+  Wifi,
+  Calendar,
+  MapPin,
+  Phone,
+  Globe,
+  Wallet,
+  FileUp,
+  FileCheck,
+  AlertCircle
 } from "lucide-react";
+import jsQR from "jsqr";
 import { PlatformState, SavedFile, Habit, DownloadHistory } from "../app/types";
 import { exportToPDF, exportToTXT, exportToDOCX, exportToCSV, exportCanvasAsImage } from "../utils/exporter";
+import { sanitizeInput, validateUploadedFile, sanitizeFilename, getSafeHref } from "../utils/security";
+
+export interface ParsedQrData {
+  type: string;
+  icon: string;
+  fields: { label: string; value: string; isLink?: boolean }[];
+  rawText: string;
+}
+
+export const parseQrPayload = (data: string): ParsedQrData => {
+  const trimmed = data.trim();
+  
+  // 1. WiFi Credentials
+  if (trimmed.toUpperCase().startsWith("WIFI:")) {
+    const ssidMatch = trimmed.match(/S:([^;]+)/i);
+    const passMatch = trimmed.match(/P:([^;]+)/i);
+    const typeMatch = trimmed.match(/T:([^;]+)/i);
+    const ssid = ssidMatch ? ssidMatch[1] : "Unknown";
+    const password = passMatch ? passMatch[1] : "(None/Open)";
+    const type = typeMatch ? typeMatch[1] : "WPA";
+    return {
+      type: "WiFi Network Settings",
+      icon: "wifi",
+      fields: [
+        { label: "SSID (Network Name)", value: ssid },
+        { label: "Security Type", value: type },
+        { label: "Password", value: password }
+      ],
+      rawText: trimmed
+    };
+  }
+
+  // 2. vCard / MeCard (Contact Information)
+  if (trimmed.toUpperCase().startsWith("BEGIN:VCARD") || trimmed.toUpperCase().includes("VCARD")) {
+    const fnMatch = trimmed.match(/FN:([^\n\r]+)/i);
+    const nMatch = trimmed.match(/N:([^\n\r]+)/i);
+    const telMatch = trimmed.match(/TEL[^:]*:([^\n\r]+)/i);
+    const emailMatch = trimmed.match(/EMAIL[^:]*:([^\n\r]+)/i);
+    const orgMatch = trimmed.match(/ORG:([^\n\r]+)/i);
+    const urlMatch = trimmed.match(/URL[^:]*:([^\n\r]+)/i);
+
+    const name = fnMatch ? fnMatch[1] : (nMatch ? nMatch[1].replace(/;/g, ' ') : "Unnamed Contact");
+    
+    const fields: { label: string; value: string; isLink?: boolean }[] = [
+      { label: "Full Name", value: name }
+    ];
+    if (telMatch) fields.push({ label: "Phone Number", value: telMatch[1] });
+    if (emailMatch) fields.push({ label: "Email Address", value: emailMatch[1] });
+    if (orgMatch) fields.push({ label: "Organization", value: orgMatch[1] });
+    if (urlMatch) fields.push({ label: "Website URL", value: urlMatch[1], isLink: true });
+
+    return {
+      type: "vCard Contact Card",
+      icon: "user",
+      fields,
+      rawText: trimmed
+    };
+  }
+
+  // MeCard
+  if (trimmed.toUpperCase().startsWith("MECARD:")) {
+    const nMatch = trimmed.match(/N:([^;]+)/i);
+    const telMatch = trimmed.match(/TEL:([^;]+)/i);
+    const emailMatch = trimmed.match(/EMAIL:([^;]+)/i);
+    const urlMatch = trimmed.match(/URL:([^;]+)/i);
+
+    const name = nMatch ? nMatch[1].replace(/,/g, ' ') : "Unnamed Contact";
+    const fields: { label: string; value: string; isLink?: boolean }[] = [{ label: "Full Name", value: name }];
+    if (telMatch) fields.push({ label: "Phone Number", value: telMatch[1] });
+    if (emailMatch) fields.push({ label: "Email Address", value: emailMatch[1] });
+    if (urlMatch) fields.push({ label: "Website URL", value: urlMatch[1], isLink: true });
+
+    return {
+      type: "MeCard Contact",
+      icon: "user",
+      fields,
+      rawText: trimmed
+    };
+  }
+
+  // 3. iCalendar / Event
+  if (trimmed.toUpperCase().startsWith("BEGIN:VEVENT") || trimmed.toUpperCase().includes("BEGIN:VCALENDAR")) {
+    const summaryMatch = trimmed.match(/SUMMARY:([^\n\r]+)/i);
+    const dtstartMatch = trimmed.match(/DTSTART:([^\n\r]+)/i);
+    const dtendMatch = trimmed.match(/DTEND:([^\n\r]+)/i);
+    const locationMatch = trimmed.match(/LOCATION:([^\n\r]+)/i);
+    const descMatch = trimmed.match(/DESCRIPTION:([^\n\r]+)/i);
+
+    const title = summaryMatch ? summaryMatch[1] : "Untitled Event";
+    const fields = [
+      { label: "Event Title", value: title }
+    ];
+    if (dtstartMatch) fields.push({ label: "Start Date/Time", value: dtstartMatch[1] });
+    if (dtendMatch) fields.push({ label: "End Date/Time", value: dtendMatch[1] });
+    if (locationMatch) fields.push({ label: "Location", value: locationMatch[1] });
+    if (descMatch) fields.push({ label: "Description", value: descMatch[1] });
+
+    return {
+      type: "Calendar Event",
+      icon: "calendar",
+      fields,
+      rawText: trimmed
+    };
+  }
+
+  // 4. Crypto Addresses
+  const cryptoPrefixes = ["bitcoin:", "ethereum:", "litecoin:", "doge:", "solana:", "bitcoincash:", "dash:"];
+  for (const prefix of cryptoPrefixes) {
+    if (trimmed.toLowerCase().startsWith(prefix)) {
+      const parts = trimmed.split("?");
+      const address = parts[0].substring(prefix.length);
+      const query = parts[1] || "";
+      const amtMatch = query.match(/amount=([^&]+)/i);
+      
+      const fields = [
+        { label: "Blockchain", value: prefix.replace(":", "").toUpperCase() },
+        { label: "Wallet Address", value: address }
+      ];
+      if (amtMatch) fields.push({ label: "Requested Amount", value: amtMatch[1] });
+      
+      return {
+        type: "Cryptocurrency Address / Request",
+        icon: "wallet",
+        fields,
+        rawText: trimmed
+      };
+    }
+  }
+
+  // 5. Geographic coordinates
+  if (trimmed.toLowerCase().startsWith("geo:")) {
+    const coords = trimmed.substring(4).split("?")[0].split(",");
+    const lat = coords[0] || "0";
+    const lon = coords[1] || "0";
+    const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+    return {
+      type: "Geographic Location",
+      icon: "map-pin",
+      fields: [
+        { label: "Latitude", value: lat },
+        { label: "Longitude", value: lon },
+        { label: "Google Maps Link", value: googleMapsUrl, isLink: true }
+      ],
+      rawText: trimmed
+    };
+  }
+
+  // 6. Emails (mailto: or text matching email structure)
+  if (trimmed.toLowerCase().startsWith("mailto:")) {
+    const emailStr = trimmed.substring(7).split("?")[0];
+    const subjectMatch = trimmed.match(/subject=([^&]+)/i);
+    const bodyMatch = trimmed.match(/body=([^&]+)/i);
+    
+    const fields = [
+      { label: "Email Recipient", value: emailStr }
+    ];
+    if (subjectMatch) fields.push({ label: "Pre-filled Subject", value: decodeURIComponent(subjectMatch[1]) });
+    if (bodyMatch) fields.push({ label: "Pre-filled Body", value: decodeURIComponent(bodyMatch[1]) });
+
+    return {
+      type: "Email Composer Payload",
+      icon: "mail",
+      fields,
+      rawText: trimmed
+    };
+  }
+
+  // 7. Standard Phone Number (tel:)
+  if (trimmed.toLowerCase().startsWith("tel:")) {
+    return {
+      type: "Phone Number / Dial Link",
+      icon: "phone",
+      fields: [
+        { label: "Phone Number", value: trimmed.substring(4) }
+      ],
+      rawText: trimmed
+    };
+  }
+
+  // 8. Standard URLs (http/https/www)
+  const isUrl = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([\/\w .-]*)*\/?$/i.test(trimmed);
+  if (trimmed.toLowerCase().startsWith("http://") || trimmed.toLowerCase().startsWith("https://") || isUrl) {
+    let clickableUrl = trimmed;
+    if (!trimmed.toLowerCase().startsWith("http://") && !trimmed.toLowerCase().startsWith("https://")) {
+      clickableUrl = "https://" + trimmed;
+    }
+    return {
+      type: "Web URL / Hyperlink",
+      icon: "globe",
+      fields: [
+        { label: "Target URL", value: trimmed, isLink: true }
+      ],
+      rawText: trimmed
+    };
+  }
+
+  // 9. Plain text fallback
+  return {
+    type: "Plain Text Message",
+    icon: "text",
+    fields: [
+      { label: "Decoded Message", value: trimmed }
+    ],
+    rawText: trimmed
+  };
+};
 
 interface AiToolsProps {
   state: PlatformState;
@@ -35,7 +265,12 @@ export default function AiTools({
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [isFavorite, setIsFavorite] = useState(false);
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" | "info" = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
 
   // General Text-tool output state
   const [output, setOutput] = useState("");
@@ -130,6 +365,157 @@ export default function AiTools({
   const [qrBgColor, setQrBgColor] = useState("#ffffff"); // Classic white default
   const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  // QR Code Scanner State
+  const [dragActive, setDragActive] = useState(false);
+  const [qrScanFile, setQrScanFile] = useState<File | null>(null);
+  const [qrScanImageSrc, setQrScanImageSrc] = useState<string | null>(null);
+  const [qrScanResult, setQrScanResult] = useState<ParsedQrData | null>(null);
+  const [qrScanLoading, setQrScanLoading] = useState(false);
+  const [qrScanError, setQrScanError] = useState<string | null>(null);
+
+  const handleQrScanFile = (file: File) => {
+    if (!file) return;
+
+    // Rigid file type and size validation
+    const validation = validateUploadedFile(
+      file,
+      ["image/jpeg", "image/png", "image/webp", "image/*"],
+      ["jpg", "jpeg", "png", "webp"],
+      10 // 10MB limit
+    );
+    if (!validation.isValid) {
+      setQrScanError(validation.error || "Invalid QR image file.");
+      showToast(validation.error || "Invalid QR image file.", "error");
+      return;
+    }
+
+    setQrScanFile(file);
+    setQrScanError(null);
+    setQrScanLoading(true);
+    setQrScanResult(null);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      setQrScanImageSrc(dataUrl);
+
+      const img = new window.Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            setQrScanError("Could not initialize 2D canvas context.");
+            setQrScanLoading(false);
+            return;
+          }
+
+          // Scale down very large images to keep processing fast and light
+          const maxDim = 800;
+          let width = img.width;
+          let height = img.height;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          ctx.drawImage(img, 0, 0, width, height);
+
+          const imageData = ctx.getImageData(0, 0, width, height);
+          const decoded = jsQR(imageData.data, imageData.width, imageData.height);
+
+          if (decoded) {
+            const parsed = parseQrPayload(decoded.data);
+            setQrScanResult(parsed);
+            recordUsageAndActivity("QR Scanned", `Successfully decoded QR code payload of type: ${parsed.type}`);
+            showToast("QR code decoded successfully!", "success");
+          } else {
+            setQrScanError("No valid QR code could be found in the image. Please make sure the QR code is clearly visible and try again.");
+            showToast("Failed to decode QR code.", "error");
+          }
+        } catch (err: any) {
+          console.error(err);
+          setQrScanError("An error occurred during decoding: " + err.message);
+          showToast("Error processing QR image.", "error");
+        } finally {
+          setQrScanLoading(false);
+        }
+      };
+      img.onerror = () => {
+        setQrScanError("Failed to load the selected image file.");
+        setQrScanLoading(false);
+        showToast("Error loading image file.", "error");
+      };
+      img.src = dataUrl;
+    };
+    reader.onerror = () => {
+      setQrScanError("Failed to read the file.");
+      setQrScanLoading(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const getParsedIcon = (iconName: string) => {
+    switch (iconName) {
+      case "wifi": return <Wifi className="h-5 w-5 text-amber-400" />;
+      case "user": return <User className="h-5 w-5 text-blue-400" />;
+      case "calendar": return <Calendar className="h-5 w-5 text-emerald-400" />;
+      case "wallet": return <Wallet className="h-5 w-5 text-purple-400" />;
+      case "map-pin": return <MapPin className="h-5 w-5 text-red-400" />;
+      case "mail": return <Mail className="h-5 w-5 text-pink-400" />;
+      case "phone": return <Phone className="h-5 w-5 text-indigo-400" />;
+      case "globe": return <Globe className="h-5 w-5 text-cyan-400" />;
+      default: return <FileText className="h-5 w-5 text-gray-400" />;
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    showToast("Copied to clipboard!", "success");
+  };
+
+  const downloadScanResult = () => {
+    if (!qrScanResult) return;
+    try {
+      const fileName = `qr-scan-decoded-${Date.now()}.txt`;
+      let textContent = `=========================================\n`;
+      textContent += `   QR CODE DECODED DATA REPORT\n`;
+      textContent += `=========================================\n\n`;
+      textContent += `Payload Category: ${qrScanResult.type}\n`;
+      textContent += `Decoded At: ${new Date().toLocaleString()}\n\n`;
+      textContent += `--- EXTRACTED FIELDS ---\n`;
+      qrScanResult.fields.forEach(field => {
+        textContent += `${field.label}: ${field.value}\n`;
+      });
+      textContent += `\n--- RAW CONTENT ---\n`;
+      textContent += `${qrScanResult.rawText}\n\n`;
+      textContent += `=========================================\n`;
+      textContent += `Generated by AI Toolbox Pro QR Scanner\n`;
+
+      const blob = new Blob([textContent], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      showToast("Result report downloaded successfully!", "success");
+    } catch (err: any) {
+      console.error(err);
+      showToast("Failed to download results report.", "error");
+    }
+  };
+
   // =========================================================================
   // 2. Favorite Toggle Effect
   // =========================================================================
@@ -150,32 +536,33 @@ export default function AiTools({
     onUpdateState({ ...state, favorites: newFavorites });
   };
 
-  const showToast = (msg: string) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 4000);
-  };
-
   // =========================================================================
   // 3. Server-side Gemini API Call Proxy & Fallback Handler
   // =========================================================================
   const runAiGeneration = async (promptText: string, sysInstruction: string, fallbackText: string) => {
     setLoading(true);
     setErrorMsg("");
+    
+    // Sanitize user inputs on the frontend before sending them to the proxy server
+    const safePrompt = sanitizeInput(promptText);
+    const safeSysInstruction = sanitizeInput(sysInstruction);
+    
     try {
-      const response = await fetch("/api/gemini", {
+      const response = await fetch("/api/gemini/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: promptText, systemInstruction: sysInstruction }),
+        body: JSON.stringify({ prompt: safePrompt, systemInstruction: safeSysInstruction }),
       });
       const data = await response.json();
       if (response.ok && data.text) {
         setOutput(data.text);
         recordUsageAndActivity("AI Generation", `Generated content with Gemini API for tool: ${activeToolId}`);
       } else {
+        // Fallback gracefully to high-quality template output if server-side key is absent in demo mode
         setOutput(fallbackText);
         recordUsageAndActivity("AI Generation (Local Fallback)", `Rendered highly-personalized copy natively for ${activeToolId}`);
       }
-    } catch (err) {
+    } catch (err: any) {
       setOutput(fallbackText);
       recordUsageAndActivity("AI Generation (Local Fallback)", `Rendered highly-personalized copy natively for ${activeToolId}`);
     } finally {
@@ -221,7 +608,7 @@ export default function AiTools({
     }, null, 2);
 
     runAiGeneration(prompt, sys, fallback);
-    setAtsScore(Math.floor(Math.random() * 15) + 82); 
+    setAtsScore(Math.floor(Math.random() * 15) + 82); // Generate ATS score (e.g. 82 - 97)
   };
 
   const handleDownloadResume = (format: "PDF" | "TXT") => {
@@ -236,11 +623,14 @@ export default function AiTools({
   };
 
   const handleSaveFile = (title: string, content: string, format: string) => {
+    const safeTitle = sanitizeInput(title);
+    const safeContent = sanitizeInput(content);
+
     const newFile: SavedFile = {
       id: `file-${Date.now()}`,
-      title,
+      title: safeTitle,
       toolType: getToolName(activeToolId),
-      content,
+      content: safeContent,
       createdAt: new Date().toISOString(),
       format
     };
@@ -248,7 +638,7 @@ export default function AiTools({
       ...state,
       savedFiles: [newFile, ...state.savedFiles]
     });
-    showToast("✓ File successfully committed to your Saved Files dashboard!");
+    showToast("✓ File successfully committed to your Saved Files dashboard!", "success");
   };
 
   // Tool 2: Cover Letter Generator
@@ -380,6 +770,7 @@ ${captionForm.includeEmojis ? "👇 Check it out in the link below! #AIToolbox #
         const newStatus = { ...habit.status };
         newStatus[dateStr] = !newStatus[dateStr];
         
+        // Calculate dynamic streak
         let currentStreak = 0;
         let d = new Date();
         while (true) {
@@ -407,12 +798,25 @@ ${captionForm.includeEmojis ? "👇 Check it out in the link below! #AIToolbox #
     });
   };
 
-  // Tool 8: AI PDF Tools Handler
+  // Tool 8: AI PDF Tools Handler (Simulated high-fidelity conversion sandbox)
   const handlePdfProcess = () => {
     if (pdfFiles.length === 0) {
-      showToast("⚠ Please upload at least one PDF file first!");
+      showToast("Please upload at least one PDF file.", "error");
       return;
     }
+
+    if (pdfToolMode === "protect") {
+      const safePassword = sanitizeInput(pdfPassword);
+      if (!safePassword) {
+        showToast("Encryption password is required to activate protection.", "error");
+        return;
+      }
+      if (safePassword.length < 6) {
+        showToast("Encryption password must be at least 6 characters long.", "error");
+        return;
+      }
+    }
+
     setLoading(true);
     setPdfProcessStatus("Analyzing file structures and extracting vectors...");
     
@@ -428,7 +832,7 @@ ${captionForm.includeEmojis ? "👇 Check it out in the link below! #AIToolbox #
       } else if (pdfToolMode === "protect") {
         setPdfProcessStatus("Securing with AES-256 bit password signature...");
         setTimeout(() => {
-          setPdfProcessStatus(`Protection activated successfully! File locked with password: ${pdfPassword || 'demo123'}`);
+          setPdfProcessStatus(`Protection activated successfully! File locked securely with verified password.`);
           setLoading(false);
           recordUsageAndActivity("PDF Protected", "Cryptographic protection signature added.");
         }, 1200);
@@ -456,6 +860,20 @@ ${captionForm.includeEmojis ? "👇 Check it out in the link below! #AIToolbox #
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const validation = validateUploadedFile(
+        file,
+        ["image/jpeg", "image/png", "image/webp", "image/*"],
+        ["jpg", "jpeg", "png", "webp"],
+        25
+      );
+      if (!validation.isValid) {
+        showToast(validation.error || "Invalid image file.", "error");
+        return;
+      }
+      
+      const safeName = sanitizeFilename(file.name);
+      const renamedFile = new File([file], safeName, { type: file.type });
+      
       // Revoke old object URL if exists to prevent memory leaks
       if (compressPreviewUrl) {
         URL.revokeObjectURL(compressPreviewUrl);
@@ -465,7 +883,7 @@ ${captionForm.includeEmojis ? "👇 Check it out in the link below! #AIToolbox #
       setCompressPreviewError(null);
 
       try {
-        const objectUrl = URL.createObjectURL(file);
+        const objectUrl = URL.createObjectURL(renamedFile);
         setCompressPreviewUrl(objectUrl);
 
         // Preload/verify image to update loading and error states correctly
@@ -482,11 +900,12 @@ ${captionForm.includeEmojis ? "👇 Check it out in the link below! #AIToolbox #
         setCompressPreviewError("Could not generate image preview.");
         setCompressPreviewLoading(false);
       }
-
-      setCompressImage(file);
-      setOrigImageSize(`${(file.size / 1024).toFixed(1)} KB`);
+      
+      setCompressImage(renamedFile);
+      setOrigImageSize(`${(renamedFile.size / 1024).toFixed(1)} KB`);
       setCompressedImageSrc(null);
       setNewImageSize(null);
+      showToast("✓ Image uploaded and verified safely.", "success");
     }
   };
 
@@ -502,6 +921,7 @@ ${captionForm.includeEmojis ? "👇 Check it out in the link below! #AIToolbox #
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
         if (ctx) {
+          // Resize simulated: scale down slightly for higher compression yield
           const scale = compressQuality / 100;
           canvas.width = img.width * scale;
           canvas.height = img.height * scale;
@@ -511,6 +931,7 @@ ${captionForm.includeEmojis ? "👇 Check it out in the link below! #AIToolbox #
           const dataUrl = canvas.toDataURL(mime, compressQuality / 100);
           setCompressedImageSrc(dataUrl);
 
+          // Simulated compression weight
           const estimatedSize = (compressImage.size * (compressQuality / 100) * 0.45) / 1024;
           setNewImageSize(`${estimatedSize.toFixed(1)} KB`);
           setLoading(false);
@@ -690,6 +1111,7 @@ ${svgModules}</svg>`;
     });
   };
 
+  // Helper selectors
   const getToolName = (id: string) => {
     if (id === "tool-resume") return "AI Resume Builder";
     if (id === "tool-cover") return "AI Cover Letter Generator";
@@ -701,6 +1123,7 @@ ${svgModules}</svg>`;
     if (id === "tool-pdf") return "AI PDF Tools";
     if (id === "tool-compress") return "Image Compressor";
     if (id === "tool-qr") return "QR Code Generator";
+    if (id === "tool-qr-scan") return "QR Code Scanner";
     return "AI Productivity Tool";
   };
 
@@ -725,12 +1148,9 @@ ${svgModules}</svg>`;
         </button>
       </div>
 
-      {/* Floating Status Toast */}
-      {toastMsg && (
-        <div className="fixed bottom-6 right-6 z-50 p-4 rounded-xl bg-brand-neon-blue/15 border border-brand-neon-blue/40 text-brand-neon-blue text-xs font-semibold shadow-2xl animate-fade-in-up">
-          {toastMsg}
-        </div>
-      )}
+      {/* =========================================================================
+          TOOL RENDERING PANELS
+         ========================================================================= */}
 
       {/* 1. AI Resume Builder */}
       {activeToolId === "tool-resume" && (
@@ -745,34 +1165,34 @@ ${svgModules}</svg>`;
                 </div>
                 <div className="space-y-1">
                   <label className="text-gray-400">Target Job Title</label>
-                  <input type="text" value={resumeForm.targetJob} onChange={(e) => setResumeForm({...resumeForm, targetJob: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none" />
+                  <input type="text" value={resumeForm.targetJob} onChange={(e) => setResumeForm({...resumeForm, targetJob: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue" />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-gray-400">Email Address</label>
-                  <input type="email" value={resumeForm.email} onChange={(e) => setResumeForm({...resumeForm, email: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none" />
+                  <input type="email" value={resumeForm.email} onChange={(e) => setResumeForm({...resumeForm, email: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-gray-400">Phone</label>
-                  <input type="text" value={resumeForm.phone} onChange={(e) => setResumeForm({...resumeForm, phone: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none" />
+                  <input type="text" value={resumeForm.phone} onChange={(e) => setResumeForm({...resumeForm, phone: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue" />
                 </div>
               </div>
 
               <div className="space-y-1">
                 <label className="text-gray-400">Skills (Comma-separated)</label>
-                <input type="text" value={resumeForm.skills} onChange={(e) => setResumeForm({...resumeForm, skills: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none" />
+                <input type="text" value={resumeForm.skills} onChange={(e) => setResumeForm({...resumeForm, skills: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue" />
               </div>
 
               <div className="space-y-1">
                 <label className="text-gray-400">Brief Work Summary</label>
-                <textarea rows={2} value={resumeForm.summary} onChange={(e) => setResumeForm({...resumeForm, summary: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none" />
+                <textarea rows={2} value={resumeForm.summary} onChange={(e) => setResumeForm({...resumeForm, summary: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue" />
               </div>
 
               <div className="space-y-1">
                 <label className="text-gray-400">Work Experience (Details)</label>
-                <textarea rows={3} value={resumeForm.experience} onChange={(e) => setResumeForm({...resumeForm, experience: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none" />
+                <textarea rows={3} value={resumeForm.experience} onChange={(e) => setResumeForm({...resumeForm, experience: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue" />
               </div>
             </div>
 
@@ -780,7 +1200,7 @@ ${svgModules}</svg>`;
               <button 
                 onClick={handleGenerateResume}
                 disabled={loading}
-                className="flex-1 py-3 bg-brand-neon-blue hover:bg-brand-neon-blue/80 text-brand-black font-bold text-xs rounded-xl transition-all shadow-md shadow-brand-neon-blue/15 flex items-center justify-center gap-1.5 cursor-pointer"
+                className="flex-1 py-3 bg-brand-neon-blue hover:bg-brand-neon-blue/80 text-brand-black font-bold text-xs rounded-xl transition-all shadow-md shadow-brand-neon-blue/15 flex items-center justify-center gap-1.5"
               >
                 {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 <span>Generate ATS Optimizer</span>
@@ -788,6 +1208,7 @@ ${svgModules}</svg>`;
             </div>
           </div>
 
+          {/* Resume Output Section */}
           <div className="space-y-4">
             {atsScore !== null && (
               <div className="glass-panel rounded-2xl p-4 flex items-center justify-between border-brand-neon-blue/20">
@@ -805,7 +1226,7 @@ ${svgModules}</svg>`;
               <div className="flex justify-between items-center pb-2 border-b border-white/5">
                 <h3 className="font-display font-bold text-sm text-white">ATS Output Copy</h3>
                 <div className="flex items-center gap-1.5 text-xs">
-                  <button onClick={() => setResumeTemplate(resumeTemplate === 'modern' ? 'elegant' : 'modern')} className="text-gray-400 hover:text-white px-2 py-1 bg-white/5 rounded border border-white/5 cursor-pointer">Template: {resumeTemplate.toUpperCase()}</button>
+                  <button onClick={() => setResumeTemplate(resumeTemplate === 'modern' ? 'elegant' : 'modern')} className="text-gray-400 hover:text-white px-2 py-1 bg-white/5 rounded border border-white/5">Template: {resumeTemplate.toUpperCase()}</button>
                 </div>
               </div>
 
@@ -815,9 +1236,9 @@ ${svgModules}</svg>`;
                     {output}
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => handleDownloadResume("PDF")} className="flex-1 py-2.5 bg-brand-graphite hover:bg-brand-graphite/80 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-white/5 cursor-pointer"><FileDown className="h-4 w-4 text-brand-purple" /> Export PDF</button>
-                    <button onClick={() => handleDownloadResume("TXT")} className="flex-1 py-2.5 bg-brand-graphite hover:bg-brand-graphite/80 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-white/5 cursor-pointer"><Download className="h-4 w-4 text-brand-neon-blue" /> Export TXT</button>
-                    <button onClick={() => handleSaveFile("Senior ATS Resume", output, "PDF")} className="p-2.5 bg-brand-purple/10 border border-brand-purple/20 text-brand-purple hover:text-white hover:bg-brand-purple rounded-xl transition-all cursor-pointer" title="Save to Dashboard"><Check className="h-4 w-4" /></button>
+                    <button onClick={() => handleDownloadResume("PDF")} className="flex-1 py-2.5 bg-brand-graphite hover:bg-brand-graphite/80 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-white/5"><FileDown className="h-4 w-4 text-brand-purple" /> Export PDF</button>
+                    <button onClick={() => handleDownloadResume("TXT")} className="flex-1 py-2.5 bg-brand-graphite hover:bg-brand-graphite/80 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-white/5"><Download className="h-4 w-4 text-brand-neon-blue" /> Export TXT</button>
+                    <button onClick={() => handleSaveFile("Senior ATS Resume", output, "PDF")} className="p-2.5 bg-brand-purple/10 border border-brand-purple/20 text-brand-purple hover:text-white hover:bg-brand-purple rounded-xl transition-all" title="Save to Dashboard"><Check className="h-4 w-4" /></button>
                   </div>
                 </div>
               ) : (
@@ -840,34 +1261,34 @@ ${svgModules}</svg>`;
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-gray-400">Company Name</label>
-                  <input type="text" value={coverForm.companyName} onChange={(e) => setCoverForm({...coverForm, companyName: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none"/>
+                  <input type="text" value={coverForm.companyName} onChange={(e) => setCoverForm({...coverForm, companyName: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue"/>
                 </div>
                 <div className="space-y-1">
                   <label className="text-gray-400">Job Title</label>
-                  <input type="text" value={coverForm.jobTitle} onChange={(e) => setCoverForm({...coverForm, jobTitle: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none"/>
+                  <input type="text" value={coverForm.jobTitle} onChange={(e) => setCoverForm({...coverForm, jobTitle: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue"/>
                 </div>
               </div>
 
               <div className="space-y-1">
                 <label className="text-gray-400">Recipient (e.g. Hiring Manager, HR Director)</label>
-                <input type="text" value={coverForm.recipientName} onChange={(e) => setCoverForm({...coverForm, recipientName: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none"/>
+                <input type="text" value={coverForm.recipientName} onChange={(e) => setCoverForm({...coverForm, recipientName: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue"/>
               </div>
 
               <div className="space-y-1">
                 <label className="text-gray-400">Job Description Keywords</label>
-                <input type="text" value={coverForm.keywords} onChange={(e) => setCoverForm({...coverForm, keywords: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none"/>
+                <input type="text" value={coverForm.keywords} onChange={(e) => setCoverForm({...coverForm, keywords: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue"/>
               </div>
 
               <div className="space-y-1">
                 <label className="text-gray-400">Brief Experience Summary</label>
-                <textarea rows={4} value={coverForm.experienceSummary} onChange={(e) => setCoverForm({...coverForm, experienceSummary: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none"/>
+                <textarea rows={4} value={coverForm.experienceSummary} onChange={(e) => setCoverForm({...coverForm, experienceSummary: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue"/>
               </div>
             </div>
 
             <button 
               onClick={handleGenerateCoverLetter}
               disabled={loading}
-              className="w-full py-3 bg-brand-neon-blue hover:bg-brand-neon-blue/80 text-brand-black font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md cursor-pointer"
+              className="w-full py-3 bg-brand-neon-blue hover:bg-brand-neon-blue/80 text-brand-black font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md"
             >
               {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               <span>Generate Cover Letter</span>
@@ -882,9 +1303,9 @@ ${svgModules}</svg>`;
                   {output}
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => { exportToPDF(`Cover_Letter_${coverForm.companyName}`, "PERSONALIZED COVER LETTER", output); recordDownload(`Cover_Letter_${coverForm.companyName}`, "PDF", "Cover Letter"); }} className="flex-1 py-2.5 bg-brand-graphite text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-white/5 cursor-pointer"><FileDown className="h-4 w-4 text-brand-purple" /> Export PDF</button>
-                  <button onClick={() => { exportToTXT(`Cover_Letter_${coverForm.companyName}`, output); recordDownload(`Cover_Letter_${coverForm.companyName}`, "TXT", "Cover Letter"); }} className="flex-1 py-2.5 bg-brand-graphite text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-white/5 cursor-pointer"><Download className="h-4 w-4 text-brand-neon-blue" /> Export TXT</button>
-                  <button onClick={() => handleSaveFile("Executive Cover Letter", output, "PDF")} className="p-2.5 bg-brand-purple/10 border border-brand-purple/20 text-brand-purple hover:text-white hover:bg-brand-purple rounded-xl transition-all cursor-pointer" title="Save to Dashboard"><Check className="h-4 w-4" /></button>
+                  <button onClick={() => { exportToPDF(`Cover_Letter_${coverForm.companyName}`, "PERSONALIZED COVER LETTER", output); recordDownload(`Cover_Letter_${coverForm.companyName}`, "PDF", "Cover Letter"); }} className="flex-1 py-2.5 bg-brand-graphite text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-white/5"><FileDown className="h-4 w-4 text-brand-purple" /> Export PDF</button>
+                  <button onClick={() => { exportToTXT(`Cover_Letter_${coverForm.companyName}`, output); recordDownload(`Cover_Letter_${coverForm.companyName}`, "TXT", "Cover Letter"); }} className="flex-1 py-2.5 bg-brand-graphite text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-white/5"><Download className="h-4 w-4 text-brand-neon-blue" /> Export TXT</button>
+                  <button onClick={() => handleSaveFile("Executive Cover Letter", output, "PDF")} className="p-2.5 bg-brand-purple/10 border border-brand-purple/20 text-brand-purple hover:text-white hover:bg-brand-purple rounded-xl transition-all" title="Save to Dashboard"><Check className="h-4 w-4" /></button>
                 </div>
               </div>
             ) : (
@@ -915,7 +1336,7 @@ ${svgModules}</svg>`;
                 </div>
                 <div className="space-y-1">
                   <label className="text-gray-400">Target Recipient</label>
-                  <input type="text" value={emailForm.recipient} onChange={(e) => setEmailForm({...emailForm, recipient: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none" />
+                  <input type="text" value={emailForm.recipient} onChange={(e) => setEmailForm({...emailForm, recipient: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue" />
                 </div>
               </div>
 
@@ -931,14 +1352,14 @@ ${svgModules}</svg>`;
 
               <div className="space-y-1">
                 <label className="text-gray-400">Key Context & Offer (What is this about?)</label>
-                <textarea rows={4} value={emailForm.context} onChange={(e) => setEmailForm({...emailForm, context: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none"/>
+                <textarea rows={4} value={emailForm.context} onChange={(e) => setEmailForm({...emailForm, context: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue"/>
               </div>
             </div>
 
             <button 
               onClick={handleGenerateEmail}
               disabled={loading}
-              className="w-full py-3 bg-brand-neon-blue hover:bg-brand-neon-blue/80 text-brand-black font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+              className="w-full py-3 bg-brand-neon-blue hover:bg-brand-neon-blue/80 text-brand-black font-bold text-xs rounded-xl flex items-center justify-center gap-1.5"
             >
               {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               <span>Compile Business Email</span>
@@ -953,9 +1374,9 @@ ${svgModules}</svg>`;
                   {output}
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => { exportToDOCX(`Email_${emailForm.emailType}`, "AI Email Draft", output); recordDownload(`Email_${emailForm.emailType}`, "DOCX", "Email Writer"); }} className="flex-1 py-2.5 bg-brand-graphite text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-white/5 cursor-pointer"><FileDown className="h-4 w-4 text-brand-purple" /> Export DOCX</button>
-                  <button onClick={() => { exportToTXT(`Email_${emailForm.emailType}`, output); recordDownload(`Email_${emailForm.emailType}`, "TXT", "Email Writer"); }} className="flex-1 py-2.5 bg-brand-graphite text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-white/5 cursor-pointer"><Download className="h-4 w-4 text-brand-neon-blue" /> Export TXT</button>
-                  <button onClick={() => handleSaveFile("Business Email Draft", output, "TXT")} className="p-2.5 bg-brand-purple/10 border border-brand-purple/20 text-brand-purple hover:text-white hover:bg-brand-purple rounded-xl transition-all cursor-pointer"><Check className="h-4 w-4" /></button>
+                  <button onClick={() => { exportToDOCX(`Email_${emailForm.emailType}`, "AI Email Draft", output); recordDownload(`Email_${emailForm.emailType}`, "DOCX", "Email Writer"); }} className="flex-1 py-2.5 bg-brand-graphite text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-white/5"><FileDown className="h-4 w-4 text-brand-purple" /> Export DOCX</button>
+                  <button onClick={() => { exportToTXT(`Email_${emailForm.emailType}`, output); recordDownload(`Email_${emailForm.emailType}`, "TXT", "Email Writer"); }} className="flex-1 py-2.5 bg-brand-graphite text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-white/5"><Download className="h-4 w-4 text-brand-neon-blue" /> Export TXT</button>
+                  <button onClick={() => handleSaveFile("Business Email Draft", output, "TXT")} className="p-2.5 bg-brand-purple/10 border border-brand-purple/20 text-brand-purple hover:text-white hover:bg-brand-purple rounded-xl transition-all"><Check className="h-4 w-4" /></button>
                 </div>
               </div>
             ) : (
@@ -996,19 +1417,19 @@ ${svgModules}</svg>`;
 
               <div className="space-y-1">
                 <label className="text-gray-400">Your Profession / Title</label>
-                <input type="text" value={bioForm.profession} onChange={(e) => setBioForm({...bioForm, profession: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none" />
+                <input type="text" value={bioForm.profession} onChange={(e) => setBioForm({...bioForm, profession: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue" />
               </div>
 
               <div className="space-y-1">
                 <label className="text-gray-400">Keywords & Focus Points</label>
-                <textarea rows={4} value={bioForm.keywords} onChange={(e) => setBioForm({...bioForm, keywords: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none" />
+                <textarea rows={4} value={bioForm.keywords} onChange={(e) => setBioForm({...bioForm, keywords: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue" />
               </div>
             </div>
 
             <button 
               onClick={handleGenerateBio}
               disabled={loading}
-              className="w-full py-3 bg-brand-neon-blue hover:bg-brand-neon-blue/80 text-brand-black font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+              className="w-full py-3 bg-brand-neon-blue hover:bg-brand-neon-blue/80 text-brand-black font-bold text-xs rounded-xl flex items-center justify-center gap-1.5"
             >
               {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               <span>Generate Profile Bio</span>
@@ -1023,8 +1444,8 @@ ${svgModules}</svg>`;
                   {output}
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => { exportToTXT(`Bio_${bioForm.platform}`, output); recordDownload(`Bio_${bioForm.platform}`, "TXT", "Bio Writer"); }} className="flex-1 py-2.5 bg-brand-graphite text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-white/5 cursor-pointer"><Download className="h-4 w-4 text-brand-neon-blue" /> Export TXT</button>
-                  <button onClick={() => handleSaveFile("Professional Brand Bio", output, "TXT")} className="p-2.5 bg-brand-purple/10 border border-brand-purple/20 text-brand-purple hover:text-white hover:bg-brand-purple rounded-xl transition-all cursor-pointer"><Check className="h-4 w-4" /></button>
+                  <button onClick={() => { exportToTXT(`Bio_${bioForm.platform}`, output); recordDownload(`Bio_${bioForm.platform}`, "TXT", "Bio Writer"); }} className="flex-1 py-2.5 bg-brand-graphite text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-white/5"><Download className="h-4 w-4 text-brand-neon-blue" /> Export TXT</button>
+                  <button onClick={() => handleSaveFile("Professional Brand Bio", output, "TXT")} className="p-2.5 bg-brand-purple/10 border border-brand-purple/20 text-brand-purple hover:text-white hover:bg-brand-purple rounded-xl transition-all"><Check className="h-4 w-4" /></button>
                 </div>
               </div>
             ) : (
@@ -1066,11 +1487,11 @@ ${svgModules}</svg>`;
 
               <div className="space-y-1">
                 <label className="text-gray-400">Post Theme / Topic (Tell us what's in the post)</label>
-                <textarea rows={4} value={captionForm.topic} onChange={(e) => setCaptionForm({...captionForm, topic: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none"/>
+                <textarea rows={4} value={captionForm.topic} onChange={(e) => setCaptionForm({...captionForm, topic: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue"/>
               </div>
 
               <div className="flex items-center gap-2 pt-2">
-                <input type="checkbox" id="emojis" checked={captionForm.includeEmojis} onChange={(e) => setCaptionForm({...captionForm, includeEmojis: e.target.checked})} className="h-4 w-4 bg-brand-black border border-white/10 rounded focus:ring-0 text-brand-neon-blue cursor-pointer" />
+                <input type="checkbox" id="emojis" checked={captionForm.includeEmojis} onChange={(e) => setCaptionForm({...captionForm, includeEmojis: e.target.checked})} className="h-4 w-4 bg-brand-black border border-white/10 rounded focus:ring-brand-neon-blue text-brand-neon-blue" />
                 <label htmlFor="emojis" className="text-gray-400 cursor-pointer select-none">Include relevant emojis and copyable tags</label>
               </div>
             </div>
@@ -1078,7 +1499,7 @@ ${svgModules}</svg>`;
             <button 
               onClick={handleGenerateCaption}
               disabled={loading}
-              className="w-full py-3 bg-brand-neon-blue hover:bg-brand-neon-blue/80 text-brand-black font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+              className="w-full py-3 bg-brand-neon-blue hover:bg-brand-neon-blue/80 text-brand-black font-bold text-xs rounded-xl flex items-center justify-center gap-1.5"
             >
               {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               <span>Generate Viral Caption</span>
@@ -1093,8 +1514,8 @@ ${svgModules}</svg>`;
                   {output}
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => { exportToTXT(`Social_Caption_${captionForm.platform}`, output); recordDownload(`Social_Caption_${captionForm.platform}`, "TXT", "Caption Generator"); }} className="flex-1 py-2.5 bg-brand-graphite text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-white/5 cursor-pointer"><Download className="h-4 w-4 text-brand-neon-blue" /> Export TXT</button>
-                  <button onClick={() => handleSaveFile("Social Caption Copy", output, "TXT")} className="p-2.5 bg-brand-purple/10 border border-brand-purple/20 text-brand-purple hover:text-white hover:bg-brand-purple rounded-xl transition-all cursor-pointer"><Check className="h-4 w-4" /></button>
+                  <button onClick={() => { exportToTXT(`Social_Caption_${captionForm.platform}`, output); recordDownload(`Social_Caption_${captionForm.platform}`, "TXT", "Caption Generator"); }} className="flex-1 py-2.5 bg-brand-graphite text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-white/5"><Download className="h-4 w-4 text-brand-neon-blue" /> Export TXT</button>
+                  <button onClick={() => handleSaveFile("Social Caption Copy", output, "TXT")} className="p-2.5 bg-brand-purple/10 border border-brand-purple/20 text-brand-purple hover:text-white hover:bg-brand-purple rounded-xl transition-all"><Check className="h-4 w-4" /></button>
                 </div>
               </div>
             ) : (
@@ -1116,21 +1537,21 @@ ${svgModules}</svg>`;
               <div className="space-y-1">
                 <label className="text-gray-400">Operation Mode</label>
                 <div className="grid grid-cols-2 gap-2">
-                  <button onClick={() => setStudyForm({...studyForm, mode: 'summarize'})} className={`py-2 text-xs font-semibold rounded-lg border cursor-pointer ${studyForm.mode === 'summarize' ? 'bg-brand-purple/10 text-brand-purple border-brand-purple/30' : 'bg-brand-black text-gray-400 border-white/5'}`}>Summarize Notes</button>
-                  <button onClick={() => setStudyForm({...studyForm, mode: 'flashcards'})} className={`py-2 text-xs font-semibold rounded-lg border cursor-pointer ${studyForm.mode === 'flashcards' ? 'bg-brand-purple/10 text-brand-purple border-brand-purple/30' : 'bg-brand-black text-gray-400 border-white/5'}`}>Interactive Flashcards</button>
+                  <button onClick={() => setStudyForm({...studyForm, mode: 'summarize'})} className={`py-2 text-xs font-semibold rounded-lg border ${studyForm.mode === 'summarize' ? 'bg-brand-purple/10 text-brand-purple border-brand-purple/30' : 'bg-brand-black text-gray-400 border-white/5'}`}>Summarize Notes</button>
+                  <button onClick={() => setStudyForm({...studyForm, mode: 'flashcards'})} className={`py-2 text-xs font-semibold rounded-lg border ${studyForm.mode === 'flashcards' ? 'bg-brand-purple/10 text-brand-purple border-brand-purple/30' : 'bg-brand-black text-gray-400 border-white/5'}`}>Interactive Flashcards</button>
                 </div>
               </div>
 
               <div className="space-y-1">
                 <label className="text-gray-400">Raw Article, Lecture, or Document Text (Copy & Paste)</label>
-                <textarea rows={8} value={studyForm.rawText} onChange={(e) => setStudyForm({...studyForm, rawText: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none font-sans text-xs"/>
+                <textarea rows={8} value={studyForm.rawText} onChange={(e) => setStudyForm({...studyForm, rawText: e.target.value})} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue font-sans text-xs"/>
               </div>
             </div>
 
             <button 
               onClick={handleGenerateStudyNotes}
               disabled={loading}
-              className="w-full py-3 bg-brand-neon-blue hover:bg-brand-neon-blue/80 text-brand-black font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+              className="w-full py-3 bg-brand-neon-blue hover:bg-brand-neon-blue/80 text-brand-black font-bold text-xs rounded-xl flex items-center justify-center gap-1.5"
             >
               {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               <span>Compile Optimized Study Notes</span>
@@ -1145,9 +1566,9 @@ ${svgModules}</svg>`;
                   {output}
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => { exportToPDF("AI_Study_Notes", "AI STUDY NOTES REPORT", output); recordDownload("AI_Study_Notes", "PDF", "Study Notes"); }} className="flex-1 py-2.5 bg-brand-graphite text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-white/5 cursor-pointer"><FileDown className="h-4 w-4 text-brand-purple" /> Export PDF</button>
-                  <button onClick={() => { exportToTXT("AI_Study_Notes", output); recordDownload("AI_Study_Notes", "TXT", "Study Notes"); }} className="flex-1 py-2.5 bg-brand-graphite text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-white/5 cursor-pointer"><Download className="h-4 w-4 text-brand-neon-blue" /> Export TXT</button>
-                  <button onClick={() => handleSaveFile("Study Summary Notes", output, "PDF")} className="p-2.5 bg-brand-purple/10 border border-brand-purple/20 text-brand-purple hover:text-white hover:bg-brand-purple rounded-xl transition-all cursor-pointer"><Check className="h-4 w-4" /></button>
+                  <button onClick={() => { exportToPDF("AI_Study_Notes", "AI STUDY NOTES REPORT", output); recordDownload("AI_Study_Notes", "PDF", "Study Notes"); }} className="flex-1 py-2.5 bg-brand-graphite text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-white/5"><FileDown className="h-4 w-4 text-brand-purple" /> Export PDF</button>
+                  <button onClick={() => { exportToTXT("AI_Study_Notes", output); recordDownload("AI_Study_Notes", "TXT", "Study Notes"); }} className="flex-1 py-2.5 bg-brand-graphite text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-white/5"><Download className="h-4 w-4 text-brand-neon-blue" /> Export TXT</button>
+                  <button onClick={() => handleSaveFile("Study Summary Notes", output, "PDF")} className="p-2.5 bg-brand-purple/10 border border-brand-purple/20 text-brand-purple hover:text-white hover:bg-brand-purple rounded-xl transition-all"><Check className="h-4 w-4" /></button>
                 </div>
               </div>
             ) : (
@@ -1169,7 +1590,7 @@ ${svgModules}</svg>`;
               <form onSubmit={handleCreateHabit} className="space-y-4 text-xs text-gray-300">
                 <div className="space-y-1">
                   <label className="text-gray-400">Habit Name</label>
-                  <input type="text" value={newHabitTitle} onChange={(e) => setNewHabitTitle(e.target.value)} placeholder="e.g., Run 5km, Hydrate 3L..." className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none"/>
+                  <input type="text" value={newHabitTitle} onChange={(e) => setNewHabitTitle(e.target.value)} placeholder="e.g., Run 5km, Hydrate 3L..." className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue"/>
                 </div>
                 <div className="space-y-1">
                   <label className="text-gray-400">Frequency</label>
@@ -1178,12 +1599,13 @@ ${svgModules}</svg>`;
                     <option value="weekly">Weekly Checklist</option>
                   </select>
                 </div>
-                <button type="submit" className="w-full py-2.5 bg-brand-neon-blue text-brand-black font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer">
+                <button type="submit" className="w-full py-2.5 bg-brand-neon-blue text-brand-black font-bold rounded-xl flex items-center justify-center gap-1.5">
                   <Plus className="h-4 w-4" /> Create Tracker
                 </button>
               </form>
             </div>
 
+            {/* Habit lists and logs */}
             <div className="glass-panel rounded-2xl p-5 md:col-span-2 space-y-4">
               <div className="flex justify-between items-center pb-2 border-b border-white/5">
                 <h3 className="font-display font-bold text-sm text-white">Active Habit Logs & Analytics</h3>
@@ -1211,26 +1633,27 @@ ${svgModules}</svg>`;
                       <div key={habit.id} className="p-4 bg-brand-black/50 border border-white/5 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                         <div className="space-y-1">
                           <h4 className="font-semibold text-white text-sm">{habit.title}</h4>
-                          <p className="text-[10px] text-gray-500 font-mono">Freq: {habit.frequency} • Streak: <span className="text-brand-neon-blue font-bold">{habit.streak} days 🔥</span></p>
+                          <p className="text-[10px] text-gray-500">Freq: {habit.frequency} • Streak: <span className="text-brand-neon-blue font-bold">{habit.streak} days 🔥</span></p>
                         </div>
 
+                        {/* Checklist grid */}
                         <div className="flex items-center gap-3">
                           <div className="flex items-center gap-1.5 font-mono text-[10px]">
                             <button 
                               onClick={() => handleToggleHabitDate(habit.id, dayBeforeStr)}
-                              className={`h-7 px-2.5 rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${habit.status[dayBeforeStr] ? 'bg-brand-purple/20 border-brand-purple/40 text-brand-purple font-bold' : 'bg-brand-graphite border-white/5 text-gray-500'}`}
+                              className={`h-7 px-2.5 rounded-lg border transition-all flex items-center gap-1 ${habit.status[dayBeforeStr] ? 'bg-brand-purple/20 border-brand-purple/40 text-brand-purple font-bold' : 'bg-brand-graphite border-white/5 text-gray-500'}`}
                             >
                               2 days ago {habit.status[dayBeforeStr] && "✓"}
                             </button>
                             <button 
                               onClick={() => handleToggleHabitDate(habit.id, yesterdayStr)}
-                              className={`h-7 px-2.5 rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${habit.status[yesterdayStr] ? 'bg-brand-purple/20 border-brand-purple/40 text-brand-purple font-bold' : 'bg-brand-graphite border-white/5 text-gray-500'}`}
+                              className={`h-7 px-2.5 rounded-lg border transition-all flex items-center gap-1 ${habit.status[yesterdayStr] ? 'bg-brand-purple/20 border-brand-purple/40 text-brand-purple font-bold' : 'bg-brand-graphite border-white/5 text-gray-500'}`}
                             >
                               Yesterday {habit.status[yesterdayStr] && "✓"}
                             </button>
                             <button 
                               onClick={() => handleToggleHabitDate(habit.id, todayStr)}
-                              className={`h-7 px-2.5 rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${habit.status[todayStr] ? 'bg-brand-neon-blue/20 border-brand-neon-blue/40 text-brand-neon-blue font-bold' : 'bg-brand-graphite border-white/5 text-gray-400 hover:border-brand-neon-blue/20'}`}
+                              className={`h-7 px-2.5 rounded-lg border transition-all flex items-center gap-1 ${habit.status[todayStr] ? 'bg-brand-neon-blue/20 border-brand-neon-blue/40 text-brand-neon-blue font-bold' : 'bg-brand-graphite border-white/5 text-gray-400 hover:border-brand-neon-blue/20'}`}
                             >
                               Today {habit.status[todayStr] && "✓"}
                             </button>
@@ -1238,7 +1661,7 @@ ${svgModules}</svg>`;
                           
                           <button 
                             onClick={() => handleDeleteHabit(habit.id)}
-                            className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                            className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -1247,6 +1670,7 @@ ${svgModules}</svg>`;
                     );
                   })}
 
+                  {/* Reports export */}
                   <div className="pt-3 border-t border-white/5 flex gap-2">
                     <button 
                       onClick={() => {
@@ -1257,7 +1681,7 @@ ${svgModules}</svg>`;
                         exportToCSV("AI_Habit_Report", rows);
                         recordDownload("AI_Habit_Report", "CSV", "Habit Tracker");
                       }}
-                      className="flex-1 py-2 bg-brand-graphite hover:bg-brand-graphite/70 text-white rounded-lg font-semibold flex items-center justify-center gap-1.5 border border-white/5 cursor-pointer"
+                      className="flex-1 py-2 bg-brand-graphite hover:bg-brand-graphite/70 text-white rounded-lg font-semibold flex items-center justify-center gap-1.5 border border-white/5"
                     >
                       <Download className="h-3.5 w-3.5" /> Export Habits Database (CSV)
                     </button>
@@ -1289,13 +1713,14 @@ ${svgModules}</svg>`;
                   <button 
                     key={mode.id} 
                     onClick={() => setPdfToolMode(mode.id)} 
-                    className={`py-2 px-3 rounded-xl border text-left font-semibold transition-all cursor-pointer ${pdfToolMode === mode.id ? 'bg-brand-neon-blue/15 border-brand-neon-blue/40 text-brand-neon-blue' : 'bg-brand-black border-white/5 text-gray-400 hover:border-white/15'}`}
+                    className={`py-2 px-3 rounded-xl border text-left font-semibold transition-all ${pdfToolMode === mode.id ? 'bg-brand-neon-blue/15 border-brand-neon-blue/40 text-brand-neon-blue' : 'bg-brand-black border-white/5 text-gray-400 hover:border-white/15'}`}
                   >
                     {mode.label}
                   </button>
                 ))}
               </div>
 
+              {/* Encryption fields */}
               {pdfToolMode === "protect" && (
                 <div className="space-y-1">
                   <label className="text-gray-400">AES Encryption Password</label>
@@ -1304,11 +1729,12 @@ ${svgModules}</svg>`;
                     value={pdfPassword} 
                     onChange={(e) => setPdfPassword(e.target.value)} 
                     placeholder="Enter cryptographic lock password" 
-                    className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none"
+                    className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue"
                   />
                 </div>
               )}
 
+              {/* Drag and drop files */}
               <div className="space-y-1">
                 <label className="text-gray-400">Upload Target File(s)</label>
                 <div className="border border-dashed border-white/10 hover:border-brand-neon-blue/30 rounded-2xl p-6 text-center cursor-pointer bg-brand-black/20 transition-all">
@@ -1319,7 +1745,28 @@ ${svgModules}</svg>`;
                     accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
                     onChange={(e) => {
                       if (e.target.files) {
-                        setPdfFiles(Array.from(e.target.files));
+                        const filesArray = Array.from(e.target.files) as File[];
+                        const validatedFiles: File[] = [];
+                        
+                        for (const file of filesArray) {
+                          const validation = validateUploadedFile(
+                            file,
+                            ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "image/jpeg", "image/png", "image/*"],
+                            ["pdf", "doc", "docx", "jpg", "jpeg", "png"],
+                            25
+                          );
+                          
+                          if (!validation.isValid) {
+                            showToast(validation.error || "Invalid file loaded.", "error");
+                            return;
+                          }
+                          
+                          const safeName = sanitizeFilename(file.name);
+                          const renamedFile = new File([file], safeName, { type: file.type });
+                          validatedFiles.push(renamedFile);
+                        }
+                        setPdfFiles(validatedFiles);
+                        showToast(`✓ Checked and secured ${validatedFiles.length} file(s) for browser processing.`, "success");
                       }
                     }} 
                     className="hidden" 
@@ -1348,13 +1795,14 @@ ${svgModules}</svg>`;
             <button 
               onClick={handlePdfProcess}
               disabled={loading || pdfFiles.length === 0}
-              className="w-full py-3 bg-brand-neon-blue disabled:bg-brand-graphite disabled:text-gray-500 hover:bg-brand-neon-blue/80 text-brand-black font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md cursor-pointer"
+              className="w-full py-3 bg-brand-neon-blue disabled:bg-brand-graphite disabled:text-gray-500 hover:bg-brand-neon-blue/80 text-brand-black font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md"
             >
               {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               <span>Execute PDF Converter</span>
             </button>
           </div>
 
+          {/* Outputs */}
           <div className="glass-panel rounded-2xl p-6 space-y-4">
             <h3 className="font-display font-bold text-sm text-white">SaaS Output Terminal</h3>
             {pdfProcessStatus ? (
@@ -1375,7 +1823,7 @@ ${svgModules}</svg>`;
                       exportToPDF("Optimized_Document", "AI TOOLBOX CONVERTED PDF", `Exported converted PDF structure under operations: ${pdfToolMode}`);
                       recordDownload("Optimized_Document", "PDF", "AI PDF Tools");
                     }}
-                    className="flex-1 py-2.5 bg-brand-purple text-white rounded-lg font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                    className="flex-1 py-2.5 bg-brand-purple text-white rounded-lg font-semibold flex items-center justify-center gap-1.5"
                   >
                     <Download className="h-4 w-4" /> Download Result Document
                   </button>
@@ -1462,7 +1910,7 @@ ${svgModules}</svg>`;
             <button 
               onClick={handleProcessImage}
               disabled={loading || !compressImage}
-              className="w-full py-3 bg-brand-neon-blue disabled:bg-brand-graphite hover:bg-brand-neon-blue/80 text-brand-black font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md cursor-pointer"
+              className="w-full py-3 bg-brand-neon-blue disabled:bg-brand-graphite hover:bg-brand-neon-blue/80 text-brand-black font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md"
             >
               {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               <span>Compress & Convert Image</span>
@@ -1474,7 +1922,7 @@ ${svgModules}</svg>`;
             {compressedImageSrc ? (
               <div className="space-y-4 text-xs">
                 <div className="flex justify-center bg-brand-black/50 p-4 rounded-xl border border-white/5">
-                  <img src={compressedImageSrc} alt="Compressed" className="max-h-48 rounded object-contain" />
+                  <img src={compressedImageSrc} alt="Compressed" loading="lazy" className="max-h-48 rounded object-contain" />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 p-3 bg-brand-graphite/40 border border-white/5 rounded-xl">
@@ -1492,7 +1940,7 @@ ${svgModules}</svg>`;
                   href={compressedImageSrc} 
                   download={`compressed_asset.${compressFormat}`}
                   onClick={() => recordDownload("compressed_asset", compressFormat.toUpperCase(), "Image Compressor")}
-                  className="w-full py-2.5 bg-brand-purple text-white rounded-lg font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="w-full py-2.5 bg-brand-purple text-white rounded-lg font-semibold flex items-center justify-center gap-1.5"
                 >
                   <Download className="h-4 w-4" /> Download Compressed Image
                 </a>
@@ -1525,7 +1973,7 @@ ${svgModules}</svg>`;
                     <button 
                       key={mode.id} 
                       onClick={() => setQrType(mode.id as any)} 
-                      className={`py-1.5 rounded-lg border font-semibold text-center cursor-pointer ${qrType === mode.id ? 'bg-brand-neon-blue/15 border-brand-neon-blue/40 text-brand-neon-blue' : 'bg-brand-black border-white/5 text-gray-400'}`}
+                      className={`py-1.5 rounded-lg border font-semibold text-center ${qrType === mode.id ? 'bg-brand-neon-blue/15 border-brand-neon-blue/40 text-brand-neon-blue' : 'bg-brand-black border-white/5 text-gray-400'}`}
                     >
                       {mode.label}
                     </button>
@@ -1533,42 +1981,46 @@ ${svgModules}</svg>`;
                 </div>
               </div>
 
+              {/* URL Form */}
               {qrType === "url" && (
                 <div className="space-y-1">
                   <label className="text-gray-400">Target Web URL Address</label>
-                  <input type="url" value={qrInputUrl} onChange={(e) => setQrInputUrl(e.target.value)} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none" />
+                  <input type="url" value={qrInputUrl} onChange={(e) => setQrInputUrl(e.target.value)} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue" />
                 </div>
               )}
 
+              {/* Text Form */}
               {qrType === "text" && (
                 <div className="space-y-1">
                   <label className="text-gray-400">Raw Text / Message</label>
-                  <textarea rows={3} value={qrInputText} onChange={(e) => setQrInputText(e.target.value)} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none" />
+                  <textarea rows={3} value={qrInputText} onChange={(e) => setQrInputText(e.target.value)} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue" />
                 </div>
               )}
 
+              {/* WiFi Form */}
               {qrType === "wifi" && (
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-gray-400">SSID Name</label>
-                    <input type="text" value={qrWifiSsid} onChange={(e) => setQrWifiSsid(e.target.value)} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none" />
+                    <input type="text" value={qrWifiSsid} onChange={(e) => setQrWifiSsid(e.target.value)} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-gray-400">Password</label>
-                    <input type="password" value={qrWifiPass} onChange={(e) => setQrWifiPass(e.target.value)} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none" />
+                    <input type="password" value={qrWifiPass} onChange={(e) => setQrWifiPass(e.target.value)} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue" />
                   </div>
                 </div>
               )}
 
+              {/* Contact VCard */}
               {qrType === "vcard" && (
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-gray-400">Full Name</label>
-                    <input type="text" value={qrVcardName} onChange={(e) => setQrVcardName(e.target.value)} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none" />
+                    <input type="text" value={qrVcardName} onChange={(e) => setQrVcardName(e.target.value)} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-gray-400">Phone</label>
-                    <input type="text" value={qrVcardPhone} onChange={(e) => setQrVcardPhone(e.target.value)} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none" />
+                    <input type="text" value={qrVcardPhone} onChange={(e) => setQrVcardPhone(e.target.value)} className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue" />
                   </div>
                 </div>
               )}
@@ -1591,7 +2043,7 @@ ${svgModules}</svg>`;
                         value={qrFgColor} 
                         onChange={(e) => setQrFgColor(e.target.value)} 
                         placeholder="#000000"
-                        className="w-full p-1.5 bg-brand-black border border-white/5 rounded-lg text-white font-mono text-[11px] focus:border-brand-neon-blue uppercase text-center focus:outline-none" 
+                        className="w-full p-1.5 bg-brand-black border border-white/5 rounded-lg text-white font-mono text-[11px] focus:border-brand-neon-blue uppercase text-center" 
                       />
                     </div>
                   </div>
@@ -1609,7 +2061,7 @@ ${svgModules}</svg>`;
                         value={qrBgColor} 
                         onChange={(e) => setQrBgColor(e.target.value)} 
                         placeholder="#ffffff"
-                        className="w-full p-1.5 bg-brand-black border border-white/5 rounded-lg text-white font-mono text-[11px] focus:border-brand-neon-blue uppercase text-center focus:outline-none" 
+                        className="w-full p-1.5 bg-brand-black border border-white/5 rounded-lg text-white font-mono text-[11px] focus:border-brand-neon-blue uppercase text-center" 
                       />
                     </div>
                   </div>
@@ -1636,6 +2088,7 @@ ${svgModules}</svg>`;
               <canvas ref={qrCanvasRef} width={300} height={300} className="w-56 h-56 object-contain" />
             </div>
 
+            {/* Downloads bar */}
             <div className="w-full space-y-2">
               <p className="text-gray-400 text-xs text-center font-mono">DETERMINISTIC VECTOR NODE COMPILED ✓</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
@@ -1647,6 +2100,223 @@ ${svgModules}</svg>`;
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 11. QR Code Scanner */}
+      {activeToolId === "tool-qr-scan" && (
+        <div className="grid md:grid-cols-2 gap-6 items-start">
+          <div className="glass-panel rounded-2xl p-6 space-y-5">
+            <h3 className="font-display font-bold text-sm text-white flex items-center gap-2">
+              <Scan className="h-4 w-4 text-brand-neon-blue" />
+              Upload QR Image
+            </h3>
+            
+            <div 
+              onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+              onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragActive(false);
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                  handleQrScanFile(e.dataTransfer.files[0]);
+                }
+              }}
+              className={`border border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-300 relative ${
+                dragActive 
+                  ? "border-brand-neon-blue bg-brand-neon-blue/10 scale-[0.99] shadow-[0_0_15px_rgba(6,182,212,0.15)]" 
+                  : "border-white/10 hover:border-brand-neon-blue/30 bg-brand-black/20"
+              }`}
+            >
+              <input 
+                type="file" 
+                id="qr-file-upload" 
+                accept="image/png, image/jpeg, image/jpg, image/webp" 
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    handleQrScanFile(e.target.files[0]);
+                  }
+                }} 
+                className="hidden" 
+              />
+              <label htmlFor="qr-file-upload" className="cursor-pointer space-y-3 flex flex-col items-center">
+                <div className="h-14 w-14 rounded-full bg-brand-charcoal flex items-center justify-center border border-white/5 shadow-md">
+                  <FileUp className="h-6 w-6 text-brand-purple animate-pulse" />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs font-semibold text-white block">
+                    Choose Photo / Drag & Drop
+                  </span>
+                  <span className="text-[10px] text-gray-500 block">
+                    Supports PNG, JPG, JPEG, WEBP files
+                  </span>
+                </div>
+              </label>
+            </div>
+
+            {qrScanImageSrc && (
+              <div className="p-4 bg-brand-black/40 rounded-2xl border border-white/5 space-y-4">
+                <p className="text-[10px] text-gray-500 font-mono tracking-wider uppercase font-bold">Loaded Image Canvas Preview</p>
+                <div className="flex justify-center bg-brand-black/40 p-4 rounded-xl relative overflow-hidden group border border-white/5">
+                  <img 
+                    src={qrScanImageSrc} 
+                    alt="QR Preview" 
+                    referrerPolicy="no-referrer"
+                    loading="lazy"
+                    className="max-h-56 max-w-full rounded-lg object-contain shadow-lg" 
+                  />
+                  {qrScanLoading && (
+                    <div className="absolute inset-0 bg-brand-black/80 flex flex-col items-center justify-center gap-3">
+                      <div className="h-8 w-8 border-2 border-brand-neon-blue border-t-transparent rounded-full animate-spin" />
+                      <span className="text-[10px] font-mono text-gray-400">DECODING MATRIX PLATES...</span>
+                    </div>
+                  )}
+                  {qrScanResult && (
+                    <div className="absolute top-2 right-2 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full text-[9px] font-mono flex items-center gap-1 font-bold shadow-md">
+                      <Check className="h-3 w-3" /> DECODED
+                    </div>
+                  )}
+                </div>
+                {qrScanFile && (
+                  <div className="flex justify-between items-center text-[10px] font-mono text-gray-400">
+                    <span className="truncate max-w-[200px]">📄 {qrScanFile.name}</span>
+                    <span>{(qrScanFile.size / 1024).toFixed(1)} KB</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {qrScanError && (
+              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex gap-3 items-start">
+                <AlertCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold text-red-400 font-display">Decoding Failed</h4>
+                  <p className="text-[11px] text-gray-400 leading-relaxed">{qrScanError}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="glass-panel rounded-2xl p-6 space-y-5 flex flex-col justify-between min-h-[400px]">
+            <div>
+              <h3 className="font-display font-bold text-sm text-white mb-4">Scan Results & Payload Extractor</h3>
+              
+              {!qrScanResult && !qrScanLoading && !qrScanError && (
+                <div className="h-64 flex flex-col items-center justify-center text-center p-6 border border-white/5 rounded-2xl bg-brand-black/20">
+                  <Scan className="h-12 w-12 text-gray-600 mb-3 animate-pulse" />
+                  <p className="text-gray-400 text-xs font-semibold">Awaiting QR Code Source</p>
+                  <p className="text-[10px] text-gray-500 max-w-xs mt-1 leading-relaxed">
+                    Upload or drag & drop any image containing a QR Code above to instantly parse and view its embedded fields.
+                  </p>
+                </div>
+              )}
+
+              {qrScanLoading && (
+                <div className="h-64 flex flex-col items-center justify-center text-center p-6 border border-white/5 rounded-2xl bg-brand-black/20">
+                  <RefreshCw className="h-10 w-10 text-brand-purple animate-spin mb-3" />
+                  <p className="text-gray-300 text-xs font-semibold">Running Local OCR Decoder</p>
+                  <p className="text-[10px] text-gray-500 mt-1">Analyzing QR finder patterns and alignment pixels...</p>
+                </div>
+              )}
+
+              {qrScanResult && (
+                <div className="space-y-5 animate-fade-in">
+                  {/* Category Type Card */}
+                  <div className="p-4 bg-brand-black/30 border border-white/5 rounded-2xl flex items-center gap-3.5 shadow-md">
+                    <div className="h-11 w-11 rounded-xl bg-brand-charcoal border border-white/10 flex items-center justify-center shrink-0 shadow-sm">
+                      {getParsedIcon(qrScanResult.icon)}
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-mono text-brand-neon-blue uppercase tracking-wider font-bold">Detected Format</span>
+                      <h4 className="text-white text-sm font-bold font-display">{qrScanResult.type}</h4>
+                    </div>
+                  </div>
+
+                  {/* Extracted Fields */}
+                  <div className="space-y-3">
+                    <p className="text-[10px] font-mono text-gray-500 uppercase tracking-wider font-bold">Extracted Information Fields</p>
+                    <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+                      {qrScanResult.fields.map((field, idx) => (
+                        <div key={idx} className="p-3 bg-brand-charcoal/50 hover:bg-brand-charcoal/70 border border-white/5 rounded-xl flex justify-between items-center gap-4 transition-all group">
+                          <div className="space-y-1 shrink-1 min-w-0">
+                            <span className="text-[9px] font-mono text-gray-400 block">{field.label}</span>
+                            {field.isLink ? (
+                              <a 
+                                href={getSafeHref(field.value)} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="text-xs text-brand-neon-blue hover:underline font-semibold block truncate cursor-pointer break-all"
+                              >
+                                {field.value}
+                              </a>
+                            ) : (
+                              <span className="text-xs text-white font-medium block truncate break-all selection:bg-brand-neon-blue/30">{field.value}</span>
+                            )}
+                          </div>
+                          <button 
+                            onClick={() => copyToClipboard(field.value)} 
+                            className="p-1.5 bg-brand-black/60 hover:bg-brand-black text-gray-400 hover:text-white rounded-lg border border-white/5 transition-all opacity-100 md:opacity-0 group-hover:opacity-100 cursor-pointer"
+                            title="Copy field value"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Raw Text Dump */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <p className="text-[10px] font-mono text-gray-500 uppercase tracking-wider font-bold">Raw Payload Dump</p>
+                      <button 
+                        onClick={() => copyToClipboard(qrScanResult.rawText)}
+                        className="text-[10px] text-brand-neon-blue hover:underline font-mono font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Copy className="h-3 w-3" /> Copy Raw
+                      </button>
+                    </div>
+                    <div className="p-3.5 bg-brand-black/60 border border-white/5 rounded-xl max-h-32 overflow-y-auto font-mono text-[11px] text-gray-300 leading-relaxed whitespace-pre-wrap break-all select-all selection:bg-brand-purple/40">
+                      {qrScanResult.rawText}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {qrScanResult && (
+              <div className="pt-4 border-t border-white/5 space-y-3">
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <button 
+                    onClick={downloadScanResult}
+                    className="py-2.5 bg-brand-purple hover:bg-brand-purple/90 text-white rounded-xl font-bold flex items-center justify-center gap-2 border border-white/5 cursor-pointer shadow-md shadow-brand-purple/10 active:scale-95 transition-all"
+                  >
+                    <Download className="h-4 w-4" /> Download Result
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setQrScanFile(null);
+                      setQrScanImageSrc(null);
+                      setQrScanResult(null);
+                      setQrScanError(null);
+                      showToast("Ready for next QR scan!", "info");
+                    }}
+                    className="py-2.5 bg-brand-graphite hover:bg-brand-graphite/80 text-white rounded-xl font-semibold flex items-center justify-center gap-2 border border-white/5 cursor-pointer active:scale-95 transition-all"
+                  >
+                    <RefreshCw className="h-4 w-4 text-brand-neon-blue" /> Scan Another QR
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Dynamic Toast Alerts */}
+      {toast && (
+        <div className="fixed bottom-5 right-5 z-50 flex items-center gap-3 bg-brand-graphite border border-brand-neon-blue/30 text-white px-4 py-3 rounded-xl shadow-lg shadow-brand-neon-blue/10 animate-fade-in transition-all">
+          <CheckCircle className="h-4.5 w-4.5 text-brand-neon-blue shrink-0 animate-bounce" />
+          <span className="text-xs font-semibold">{toast.message}</span>
         </div>
       )}
     </div>

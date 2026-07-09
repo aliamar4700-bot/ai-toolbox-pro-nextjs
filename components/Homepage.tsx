@@ -15,16 +15,15 @@ import {
   BookOpen, 
   Mail, 
   Star,
+  FileText,
+  Lock,
   Flame,
   Clock,
   ExternalLink,
-  Cpu,
-  Twitter,
-  Github,
-  Linkedin,
-  Youtube
+  Cpu
 } from "lucide-react";
 import { BlogPost } from "../app/types";
+import AdSensePlaceholder from "./AdSensePlaceholder";
 
 interface HomepageProps {
   onStartFree: () => void;
@@ -60,23 +59,59 @@ export default function Homepage({
   ];
 
   const popularTools = [
-    { id: "tool-resume", name: "AI Resume Builder", category: "Document Design", rating: "4.9", usage: "12.4k users", desc: "Build tailored, ATS-compliant professional resumes using AI optimizations." },
-    { id: "tool-pdf", name: "AI PDF Utilities", category: "Utility Toolbox", rating: "4.8", usage: "10.1k users", desc: "Merge, split, lock, unlock, compress, and convert PDF documents in your browser." },
-    { id: "tool-email", name: "AI Email Writer", category: "Writing Assistants", rating: "4.9", usage: "9.2k users", desc: "Draft high-response cold emails, follow-ups, and business responses instantly." }
+    { 
+      id: "tool-resume", 
+      name: "AI Resume Builder", 
+      category: "Document Design", 
+      rating: "4.9", 
+      usage: "12.4k users", 
+      desc: "Create ATS-friendly resumes in seconds using AI.",
+      icon: FileText,
+      iconColor: "text-blue-400",
+      bgColor: "bg-blue-500/10",
+      borderColor: "border-blue-500/20",
+      glowColor: "hover:border-blue-500/40 hover:shadow-[0_0_25px_rgba(59,130,246,0.15)]"
+    },
+    { 
+      id: "tool-pdf", 
+      name: "AI PDF Utilities", 
+      category: "Utility Toolbox", 
+      rating: "4.8", 
+      usage: "10.1k users", 
+      desc: "Protect, split, encrypt, or compress PDF documents instantly.",
+      icon: Lock,
+      iconColor: "text-orange-400",
+      bgColor: "bg-orange-500/10",
+      borderColor: "border-orange-500/20",
+      glowColor: "hover:border-orange-500/40 hover:shadow-[0_0_25px_rgba(249,115,22,0.15)]"
+    },
+    { 
+      id: "tool-email", 
+      name: "AI Email Writer", 
+      category: "Writing Assistants", 
+      rating: "4.9", 
+      usage: "9.2k users", 
+      desc: "Write professional emails with AI assistance.",
+      icon: Mail,
+      iconColor: "text-purple-400",
+      bgColor: "bg-purple-500/10",
+      borderColor: "border-purple-500/20",
+      glowColor: "hover:border-purple-500/40 hover:shadow-[0_0_25px_rgba(168,85,247,0.15)]"
+    }
   ];
 
   const features = [
-    { title: "Military-Grade Security", desc: "All conversions and extractions occur directly on secure servers or in-browser. Your files never remain saved unless you actively request it.", icon: Shield },
+    { title: "100% Free & Open Access", desc: "No subscriptions, signups, or payment fields. Every AI micro-tool is unlocked and operates with unlimited daily runs directly in your browser.", icon: Shield },
     { title: "Ultra-Fast Processing", desc: "Built on high-performance infrastructure ensuring file compression and text responses within milliseconds.", icon: Zap },
     { title: "Export Anywhere", desc: "Export to professional PDF, Word DOCX, text files, CSV databases, or vector images seamlessly depending on your workflow.", icon: Download },
     { title: "Next-Gen AI Core", desc: "Powered by Gemini 3.5 Flash for highly contextualized, professional text responses aligned to modern hiring or marketing practices.", icon: Cpu }
   ];
 
   const faqs = [
-    { q: "Is AI Toolbox Pro free to use?", a: "Yes, we offer a robust Free Tier that provides daily credits to use all 10 tools, standard exports, and local storage. Our Pro Plan offers unlimited high-volume generations and high-DPI document exports." },
-    { q: "How secure is my personal uploaded data?", a: "Your files are processed with extreme privacy in mind. We do not store your PDFs, images, or resume data unless you choose to save them into your personal account dashboard. Data is encrypted using HTTPS and TLS standards." },
+    { q: "Is AI Toolbox free to use?", a: "Yes, 100%! AI Toolbox has been fully transitioned to a completely free-to-use platform. There are no daily credits, signup walls, or hidden payment links. All 10 advanced tools are ready for unlimited use." },
+    { q: "How secure is my personal uploaded data?", a: "Your files are processed with extreme privacy in mind. We do not store your PDFs, images, or resume data. Data is processed locally or via secure proxy servers, encrypted using standard HTTPS protocols." },
     { q: "Are the generated resumes ATS friendly?", a: "Absolutely. Our resumes are modeled around strict guidelines requested by modern Applicant Tracking Systems. They utilize single-column flows, standard headings, clean typography, and zero isolated text boxes." },
-    { q: "Can I cancel my premium subscription at any time?", a: "Yes, subscription management is frictionless. You can manage your subscription or lifetime membership right from the profile billing menu without any hidden cancelation fees." }
+    { q: "How is the free platform supported?", a: "AI Toolbox is supported through non-intrusive Google AdSense advertising. These premium placements help cover the computational fees for our AI backend servers while ensuring the toolkit remains open to everyone." }
   ];
 
   const handleSubSubmit = (e: React.FormEvent) => {
@@ -90,8 +125,13 @@ export default function Homepage({
 
   return (
     <div className="space-y-24 pb-20">
+      {/* AdSense Top Banner */}
+      <div className="pt-4 max-w-7xl mx-auto px-6">
+        <AdSensePlaceholder slotType="top-banner" />
+      </div>
+
       {/* 1. Hero Section */}
-      <section className="relative pt-16 pb-12 flex flex-col items-center text-center px-4 max-w-5xl mx-auto space-y-8">
+      <section className="relative pt-8 pb-12 flex flex-col items-center text-center px-4 max-w-5xl mx-auto space-y-8">
         {/* Glow effect background */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-brand-neon-blue/10 blur-[120px] rounded-full pointer-events-none" />
         <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-brand-purple/10 blur-[100px] rounded-full pointer-events-none" />
@@ -106,13 +146,13 @@ export default function Homepage({
         <h1 className="font-display font-extrabold text-4xl sm:text-6xl lg:text-7xl tracking-tight leading-tight text-white max-w-4xl">
           One AI Platform.<br/>
           <span className="bg-gradient-to-r from-brand-neon-blue via-brand-electric-cyan to-brand-purple bg-clip-text text-transparent">
-            Unlimited Productivity.
+            100% Free Forever.
           </span>
         </h1>
 
         {/* Subtitle */}
         <p className="text-gray-400 text-lg sm:text-xl max-w-2xl leading-relaxed font-sans">
-          Generate resumes, draft emails, compress image layers, modify PDFs, generate custom QR codes, and automate daily tracking—all from a single premium dark workspace.
+          Generate resumes, draft emails, compress image layers, modify PDFs, generate custom QR codes, and automate daily tracking—all with unlimited, free access.
         </p>
 
         {/* Action Buttons */}
@@ -138,7 +178,7 @@ export default function Homepage({
       <section className="max-w-7xl mx-auto px-6 space-y-12">
         <div className="text-center space-y-4">
           <h2 className="font-display font-bold text-3xl sm:text-4xl text-white tracking-tight">
-            Designed for Enterprise Velocity
+            Designed for Instant Velocity
           </h2>
           <p className="text-gray-400 max-w-xl mx-auto text-sm">
             Enjoy full data safety, rich local persistence, and cutting-edge intelligence models tailored to optimize your workflow.
@@ -161,12 +201,17 @@ export default function Homepage({
         </div>
       </section>
 
+      {/* AdSense Between Sections */}
+      <div className="max-w-7xl mx-auto px-6">
+        <AdSensePlaceholder slotType="between-sections" />
+      </div>
+
       {/* 3. Popular Tools Showcase */}
       <section className="max-w-7xl mx-auto px-6 space-y-12">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/5 pb-6">
           <div>
             <h2 className="font-display font-bold text-3xl text-white tracking-tight flex items-center gap-2">
-              <Flame className="h-6 w-6 text-orange-500" />
+              <Flame className="h-6 w-6 text-orange-500 animate-bounce" />
               Popular Workspace Utilities
             </h2>
             <p className="text-gray-400 text-xs">The most utilized tools this week by developers and marketers globally.</p>
@@ -180,33 +225,47 @@ export default function Homepage({
           </button>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8">
-          {popularTools.map((tool) => (
-            <div 
-              key={tool.id} 
-              className="glass-panel glass-panel-hover rounded-2xl p-6 flex flex-col justify-between space-y-6"
-            >
-              <div className="space-y-4">
-                <div className="flex items-center justify-between text-[11px] font-mono text-gray-400">
-                  <span className="px-2 py-0.5 rounded bg-white/5 text-brand-neon-blue border border-white/10">{tool.category}</span>
-                  <span className="flex items-center gap-1"><Star className="h-3.5 w-3.5 fill-brand-neon-blue text-brand-neon-blue" /> {tool.rating}</span>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {popularTools.map((tool) => {
+            const IconComponent = tool.icon;
+            return (
+              <div 
+                key={tool.id} 
+                onClick={onExploreTools}
+                className={`group relative flex flex-col justify-between p-6 bg-brand-charcoal/40 hover:bg-brand-charcoal/70 rounded-2xl border ${tool.borderColor} ${tool.glowColor} cursor-pointer transition-all duration-300 shadow-lg hover:-translate-y-1.5 h-full`}
+              >
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className={`h-11 w-11 rounded-xl ${tool.bgColor} border ${tool.borderColor} flex items-center justify-center text-white transition-all duration-300 group-hover:scale-110`}>
+                      <IconComponent className={`h-5 w-5 ${tool.iconColor}`} />
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-gray-400">
+                      <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-brand-neon-blue">{tool.category}</span>
+                      <span className="flex items-center gap-0.5"><Star className="h-3 w-3 fill-brand-neon-blue text-brand-neon-blue" /> {tool.rating}</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <h3 className="font-display font-bold text-xl text-white group-hover:text-brand-neon-blue transition-colors">{tool.name}</h3>
+                    <p className="text-gray-400 text-xs leading-relaxed line-clamp-2 h-10">{tool.desc}</p>
+                  </div>
                 </div>
-                <h3 className="font-display font-bold text-xl text-white">{tool.name}</h3>
-                <p className="text-gray-400 text-xs leading-relaxed">{tool.desc}</p>
-              </div>
 
-              <div className="flex items-center justify-between pt-4 border-t border-white/5 text-xs">
-                <span className="text-gray-500">{tool.usage}</span>
-                <button 
-                  onClick={() => onExploreTools()}
-                  className="flex items-center gap-1 text-brand-neon-blue font-semibold hover:text-white"
-                >
-                  <span>Launch Tool</span>
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </button>
+                <div className="flex items-center justify-between pt-4 border-t border-white/5 text-xs mt-6">
+                  <span className="text-gray-500 font-mono text-[10px]">{tool.usage}</span>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onExploreTools();
+                    }}
+                    className="flex items-center gap-1 text-brand-neon-blue font-semibold hover:text-white transition-colors"
+                  >
+                    <span>Launch Tool</span>
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
@@ -248,79 +307,6 @@ export default function Homepage({
         </div>
       </section>
 
-      {/* 5. Pricing Section (Free & Pro) - Hidden for now to make every tool completely free */}
-      {false && (
-        <section className="max-w-5xl mx-auto px-6 space-y-12">
-          <div className="text-center space-y-4">
-            <h2 className="font-display font-bold text-3xl text-white tracking-tight">
-              Flexible Plans for All Creators
-            </h2>
-            <p className="text-gray-400 max-w-md mx-auto text-xs">Unlock unlimited high-volume generations, high-DPI exports, and dedicated premium server access.</p>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
-            {/* Free Plan */}
-            <div className="glass-panel rounded-2xl p-8 space-y-8 flex flex-col justify-between border-white/5">
-              <div className="space-y-4">
-                <span className="text-[10px] font-mono font-bold tracking-wider text-gray-500 uppercase">STANDARD</span>
-                <h3 className="font-display font-bold text-2xl text-white">Starter Free</h3>
-                <p className="text-gray-400 text-xs leading-relaxed">Essential features for casual creators and document drafts.</p>
-                <div className="pt-4 flex items-baseline gap-1">
-                  <span className="text-4xl font-extrabold text-white font-display">$0</span>
-                  <span className="text-gray-500 text-xs">/ forever</span>
-                </div>
-
-                <div className="pt-6 space-y-3.5 text-xs text-gray-300">
-                  <div className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-brand-neon-blue" /> 15 AI Credits Daily</div>
-                  <div className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-brand-neon-blue" /> Access to 10 core tools</div>
-                  <div className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-brand-neon-blue" /> Standard TXT and PDF exports</div>
-                  <div className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-brand-neon-blue" /> Local persistence state</div>
-                </div>
-              </div>
-
-              <button 
-                onClick={onStartFree}
-                className="w-full py-3 bg-brand-graphite hover:bg-brand-graphite/70 text-white font-semibold text-sm rounded-xl transition-all border border-white/5 hover:border-brand-neon-blue/20"
-              >
-                Start Free
-              </button>
-            </div>
-
-            {/* Pro Plan */}
-            <div className="glass-panel rounded-2xl p-8 space-y-8 flex flex-col justify-between border-brand-purple/30 relative overflow-hidden">
-              <div className="absolute top-0 right-0 bg-brand-purple text-white text-[9px] font-bold px-3 py-1 font-mono tracking-widest uppercase rounded-bl-lg">
-                POPULAR
-              </div>
-
-              <div className="space-y-4">
-                <span className="text-[10px] font-mono font-bold tracking-wider text-brand-purple uppercase">PREMIUM ACCESS</span>
-                <h3 className="font-display font-bold text-2xl text-white">Pro Membership</h3>
-                <p className="text-gray-400 text-xs leading-relaxed">Unlimited productivity for professional creators and career climbers.</p>
-                <div className="pt-4 flex items-baseline gap-1">
-                  <span className="text-4xl font-extrabold text-white font-display">$19</span>
-                  <span className="text-gray-500 text-xs">/ month</span>
-                </div>
-
-                <div className="pt-6 space-y-3.5 text-xs text-gray-300">
-                  <div className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-brand-purple" /> Unlimited AI Generations</div>
-                  <div className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-brand-purple" /> Premium ATS templates & Word exports</div>
-                  <div className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-brand-purple" /> Dynamic PDF Compression & Merging</div>
-                  <div className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-brand-purple" /> High-Resolution Vector SVG QR Codes</div>
-                  <div className="flex items-center gap-2"><CheckCircle className="h-4 w-4 text-brand-purple" /> High-Performance server access (Priority)</div>
-                </div>
-              </div>
-
-              <button 
-                onClick={onStartFree}
-                className="w-full py-3 bg-gradient-to-r from-brand-neon-blue to-brand-purple text-white font-semibold text-sm rounded-xl shadow-lg shadow-brand-purple/20 hover:shadow-brand-purple/40 hover:-translate-y-0.5 transition-all duration-300"
-              >
-                Get Premium Access
-              </button>
-            </div>
-          </div>
-        </section>
-      )}
-
       {/* 6. Blog Preview Section */}
       <section className="max-w-7xl mx-auto px-6 space-y-12">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/5 pb-6">
@@ -345,7 +331,7 @@ export default function Homepage({
                   <span className="text-brand-neon-blue">{post.category}</span>
                   <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {post.readTime}</span>
                 </div>
-                <h3 className="font-semibold text-white hover:text-brand-neon-blue transition-colors text-base line-clamp-2">
+                <h3 className="font-semibold text-white group-hover:text-brand-neon-blue transition-colors text-base line-clamp-2">
                   {post.title}
                 </h3>
                 <p className="text-gray-400 text-xs leading-relaxed line-clamp-3">
@@ -435,113 +421,6 @@ export default function Homepage({
         </div>
       </section>
 
-      {/* 9. Footer */}
-      <footer className="border-t border-white/5 pt-16 pb-12 text-xs text-gray-400 space-y-10 max-w-7xl mx-auto px-6">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 pb-10 border-b border-white/5">
-          {/* Logo, Description & Socials */}
-          <div className="md:col-span-5 space-y-5 text-left">
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-brand-purple to-brand-neon-blue flex items-center justify-center">
-                <Sparkles className="h-4 w-4 text-white" />
-              </div>
-              <span className="font-display font-bold text-base text-white">
-                AI Toolbox <span className="text-brand-neon-blue text-xs font-mono">PRO</span>
-              </span>
-            </div>
-            <p className="text-gray-500 text-xs leading-relaxed max-w-sm">
-              The ultimate workspace for elite professional content creation, dynamic PDF solutions, lossless media optimization, and robust automation suite.
-            </p>
-            {/* Social Media Icons */}
-            <div className="flex items-center gap-4">
-              <a 
-                href="https://twitter.com" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="h-8 w-8 rounded-lg bg-white/5 hover:bg-brand-neon-blue/10 border border-white/10 hover:border-brand-neon-blue/30 flex items-center justify-center text-gray-400 hover:text-brand-neon-blue transition-all"
-                title="Follow us on Twitter/X"
-              >
-                <Twitter className="h-4 w-4" />
-              </a>
-              <a 
-                href="https://github.com" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="h-8 w-8 rounded-lg bg-white/5 hover:bg-brand-neon-blue/10 border border-white/10 hover:border-brand-neon-blue/30 flex items-center justify-center text-gray-400 hover:text-brand-neon-blue transition-all"
-                title="View our GitHub profile"
-              >
-                <Github className="h-4 w-4" />
-              </a>
-              <a 
-                href="https://linkedin.com" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="h-8 w-8 rounded-lg bg-white/5 hover:bg-brand-neon-blue/10 border border-white/10 hover:border-brand-neon-blue/30 flex items-center justify-center text-gray-400 hover:text-brand-neon-blue transition-all"
-                title="Connect on LinkedIn"
-              >
-                <Linkedin className="h-4 w-4" />
-              </a>
-              <a 
-                href="https://youtube.com" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="h-8 w-8 rounded-lg bg-white/5 hover:bg-brand-neon-blue/10 border border-white/10 hover:border-brand-neon-blue/30 flex items-center justify-center text-gray-400 hover:text-brand-neon-blue transition-all"
-                title="Watch our YouTube guides"
-              >
-                <Youtube className="h-4 w-4" />
-              </a>
-            </div>
-          </div>
-
-          {/* Spacer */}
-          <div className="hidden md:block md:col-span-2"></div>
-
-          {/* Navigation Links */}
-          <div className="md:col-span-5 grid grid-cols-2 gap-6 text-left">
-            <div className="space-y-3">
-              <h4 className="font-display font-semibold text-[11px] uppercase tracking-wider text-white">Platform</h4>
-              <ul className="space-y-2">
-                <li>
-                  <button onClick={onAboutUs} className="hover:text-brand-neon-blue transition-colors cursor-pointer text-xs font-sans text-gray-400">
-                    About Us
-                  </button>
-                </li>
-                <li>
-                  <button onClick={onFAQ} className="hover:text-brand-neon-blue transition-colors cursor-pointer text-xs font-sans text-gray-400">
-                    FAQ
-                  </button>
-                </li>
-                <li>
-                  <button onClick={onContactUs} className="hover:text-brand-neon-blue transition-colors cursor-pointer text-xs font-sans text-gray-400">
-                    Contact Us
-                  </button>
-                </li>
-              </ul>
-            </div>
-
-            <div className="space-y-3">
-              <h4 className="font-display font-semibold text-[11px] uppercase tracking-wider text-white">Legal & Support</h4>
-              <ul className="space-y-2">
-                <li>
-                  <button onClick={onPrivacyPolicy} className="hover:text-brand-neon-blue transition-colors cursor-pointer text-xs font-sans text-gray-400">
-                    Privacy Policy
-                  </button>
-                </li>
-                <li>
-                  <button onClick={onTermsAndConditions} className="hover:text-brand-neon-blue transition-colors cursor-pointer text-xs font-sans text-gray-400">
-                    Terms & Conditions
-                  </button>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom copyright segment */}
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 text-gray-500 text-[11px] text-center sm:text-left">
-          <p>Copyright © 2026 AI Toolbox Pro. All Rights Reserved.</p>
-          <p className="font-mono text-[10px]">VER_3.4.0 • HIGH_VELOCITY_SECURE_COMPLIANCE</p>
-        </div>
-      </footer>
     </div>
   );
 }

@@ -18,6 +18,7 @@ import {
   Mail
 } from "lucide-react";
 import { UserProfile } from "../app/types";
+import AdSensePlaceholder from "./AdSensePlaceholder";
 
 interface SidebarProps {
   activeTab: string;
@@ -52,6 +53,8 @@ export default function Sidebar({
       <div className="md:hidden fixed top-4 left-4 z-50">
         <button 
           onClick={() => setIsOpen(!isOpen)}
+          aria-label={isOpen ? "Close Navigation Sidebar" : "Open Navigation Sidebar"}
+          aria-expanded={isOpen}
           className="p-2.5 bg-brand-charcoal text-white rounded-lg border border-white/10 hover:border-brand-neon-blue transition-colors focus:outline-none"
         >
           {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -59,7 +62,9 @@ export default function Sidebar({
       </div>
 
       {/* Sidebar Container */}
-      <aside className={`
+      <aside 
+        aria-label="Primary Navigation"
+        className={`
         fixed inset-y-0 left-0 z-40 w-64 bg-brand-charcoal border-r border-white/5 flex flex-col justify-between transition-transform duration-300 ease-in-out
         md:translate-x-0 md:static md:h-screen
         ${isOpen ? "translate-x-0" : "-translate-x-full"}
@@ -104,6 +109,11 @@ export default function Sidebar({
               </button>
             );
           })}
+
+          {/* Sidebar AdSense Placement */}
+          <div className="pt-4 px-1.5">
+            <AdSensePlaceholder slotType="sidebar" />
+          </div>
         </nav>
 
         {/* Bottom Profile and Quick-Role Switcher */}
@@ -139,7 +149,7 @@ export default function Sidebar({
                 <User className="h-4 w-4 text-brand-neon-blue" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-semibold text-white truncate leading-tight">{currentUser?.name || currentUser?.displayName}</p>
+                <p className="text-xs font-semibold text-white truncate leading-tight">{currentUser?.name}</p>
                 <p className="text-[10px] text-gray-500 truncate leading-tight">{currentUser?.email}</p>
               </div>
             </div>
@@ -147,6 +157,7 @@ export default function Sidebar({
               onClick={onLogout}
               className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors shrink-0"
               title="Logout / Change Account"
+              aria-label="Logout or Change Active Account"
             >
               <LogOut className="h-4 w-4" />
             </button>

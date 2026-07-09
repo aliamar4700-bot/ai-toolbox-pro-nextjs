@@ -2,15 +2,23 @@
 
 import React, { useState } from "react";
 import { 
+  User, 
   Settings, 
   Lock, 
   Mail, 
   Chrome, 
   CheckCircle, 
-  LogOut, 
-  KeyRound
+  Shield, 
+  Bell, 
+  Eye, 
+  RefreshCw,
+  LogOut,
+  Sparkles,
+  KeyRound,
+  Check
 } from "lucide-react";
 import { PlatformState, UserProfile } from "../app/types";
+import { sanitizeInput, validateEmail, validatePassword } from "../utils/security";
 
 interface SettingsAndAuthProps {
   state: PlatformState;
@@ -26,7 +34,12 @@ export default function SettingsAndAuth({
   onLogout 
 }: SettingsAndAuthProps) {
   const [authMode, setAuthMode] = useState<"login" | "register" | "forgot" | "profile">("profile");
-  const [alertMsg, setAlertMsg] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" | "info" = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
 
   // Auth Inputs
   const [emailInput, setEmailInput] = useState("");
@@ -41,38 +54,55 @@ export default function SettingsAndAuth({
   // Preferences
   const [notifyDaily, setNotifyDaily] = useState(true);
 
-  const showToast = (msg: string) => {
-    setAlertMsg(msg);
-    setTimeout(() => setAlertMsg(null), 4000);
-  };
-
   const handleMockLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!emailInput.trim()) return;
+    const cleanEmail = sanitizeInput(emailInput);
+    
+    if (!cleanEmail.trim()) {
+      showToast("Email address is required.", "error");
+      return;
+    }
 
-    const matchedUser = state.users.find(u => u.email.toLowerCase() === emailInput.toLowerCase());
+    if (!validateEmail(cleanEmail)) {
+      showToast("Please enter a valid, secure email format.", "error");
+      return;
+    }
+
+    if (passInput && passInput.length > 0) {
+      const passValidation = validatePassword(passInput);
+      if (!passValidation.isValid) {
+        showToast(passValidation.feedback, "error");
+        return;
+      }
+    }
+
+    // Retrieve or construct mock account
+    const matchedUser = state.users.find(u => u.email.toLowerCase() === cleanEmail.toLowerCase());
     if (matchedUser) {
       onLogin(matchedUser);
+      showToast(`Welcome back, ${matchedUser.displayName || matchedUser.name}!`, "success");
     } else {
-      const namePart = emailInput.split("@")[0];
+      const namePart = sanitizeInput(cleanEmail.split("@")[0]);
       const newUser: UserProfile = {
         id: `usr-${Date.now()}`,
         uid: `usr-${Date.now()}`,
         name: namePart,
         displayName: namePart,
-        email: emailInput,
+        email: cleanEmail,
         role: "user",
         subscription: "free",
         createdAt: new Date().toISOString()
       };
-      
+      // Append to list & Login
       onUpdateState({
         ...state,
         users: [...state.users, newUser]
       });
       onLogin(newUser);
+      showToast("✓ Your secure account has been provisioned locally!", "success");
     }
 
+    // Reset fields
     setEmailInput("");
     setPassInput("");
   };
@@ -85,7 +115,7 @@ export default function SettingsAndAuth({
       displayName: "Google Dev Account",
       email: "google.tester@gmail.com",
       role: "user",
-      subscription: "pro", 
+      subscription: "free", // Free tier default
       createdAt: new Date().toISOString()
     };
 
@@ -94,17 +124,39 @@ export default function SettingsAndAuth({
       users: state.users.some(u => u.uid === googleUser.uid) ? state.users : [...state.users, googleUser]
     });
     onLogin(googleUser);
+    showToast("✓ Authenticated via Google Mock Identity Provider.", "success");
   };
 
   const handleUpdateProfile = (e: React.FormEvent) => {
     e.preventDefault();
     if (!state.currentUser) return;
 
+    const safeName = sanitizeInput(profileName);
+    const safeEmail = sanitizeInput(profileEmail);
+
+    if (!safeName.trim()) {
+      showToast("Display name cannot be blank.", "error");
+      return;
+    }
+
+    if (!validateEmail(safeEmail)) {
+      showToast("Please enter a valid email address.", "error");
+      return;
+    }
+
+    if (newPass && newPass.length > 0) {
+      const passValidation = validatePassword(newPass);
+      if (!passValidation.isValid) {
+        showToast(passValidation.feedback, "error");
+        return;
+      }
+    }
+
     const updatedUser: UserProfile = {
       ...state.currentUser,
-      name: profileName,
-      displayName: profileName,
-      email: profileEmail
+      name: safeName,
+      displayName: safeName,
+      email: safeEmail
     };
 
     const updatedUsers = state.users.map(u => u.uid === state.currentUser?.uid || u.id === state.currentUser?.id ? updatedUser : u);
@@ -115,7 +167,9 @@ export default function SettingsAndAuth({
       users: updatedUsers
     });
 
-    showToast("✓ Profile metadata successfully saved!");
+    setNewPass("");
+    setCurrentPass("");
+    showToast("✓ Profile metadata successfully saved!", "success");
   };
 
   return (
@@ -128,13 +182,6 @@ export default function SettingsAndAuth({
         </h1>
         <p className="text-gray-400 text-xs mt-1">Configure notifications, security credentials, mock SSO pathways, or manage settings.</p>
       </div>
-
-      {/* Floating Status Toast */}
-      {alertMsg && (
-        <div className="fixed bottom-6 right-6 z-50 p-4 rounded-xl bg-brand-neon-blue/15 border border-brand-neon-blue/40 text-brand-neon-blue text-xs font-semibold shadow-2xl animate-fade-in-up">
-          {alertMsg}
-        </div>
-      )}
 
       {/* Auth and Profile tabs switcher */}
       <div className="flex border-b border-white/5 bg-brand-black/20 p-1 rounded-xl max-w-sm">
@@ -174,9 +221,9 @@ export default function SettingsAndAuth({
             </div>
 
             <div className="p-3 bg-brand-black/50 border border-white/5 rounded-xl space-y-2">
-              <p className="text-[10px] text-gray-500 font-mono font-bold">WORKSPACE LEVEL:</p>
+              <p className="text-[10px] text-gray-500 font-mono">WORKSPACE LEVEL:</p>
               <span className="px-3 py-1 rounded-lg bg-brand-neon-blue/10 text-brand-neon-blue border border-brand-neon-blue/25 text-xs font-bold uppercase tracking-wider font-mono">
-                {state.currentUser?.subscription || "free"} subscription
+                100% Free Access
               </span>
             </div>
 
@@ -222,7 +269,7 @@ export default function SettingsAndAuth({
                     value={currentPass} 
                     onChange={(e) => setCurrentPass(e.target.value)} 
                     placeholder="••••••••"
-                    className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none" 
+                    className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue" 
                   />
                 </div>
                 <div className="space-y-1">
@@ -232,7 +279,7 @@ export default function SettingsAndAuth({
                     value={newPass} 
                     onChange={(e) => setNewPass(e.target.value)} 
                     placeholder="Min 8 characters"
-                    className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none" 
+                    className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue" 
                   />
                 </div>
               </div>
@@ -248,14 +295,14 @@ export default function SettingsAndAuth({
                     type="checkbox" 
                     checked={notifyDaily} 
                     onChange={(e) => setNotifyDaily(e.target.checked)} 
-                    className="h-4 w-4 bg-brand-black border border-white/10 rounded text-brand-neon-blue focus:ring-0"
+                    className="h-4 w-4 bg-brand-black border border-white/10 rounded text-brand-neon-blue"
                   />
                 </div>
               </div>
 
               <button 
                 type="submit" 
-                className="w-full py-3 bg-brand-neon-blue text-brand-black font-bold text-xs rounded-xl shadow-md hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5"
+                className="w-full py-3 bg-brand-neon-blue text-brand-black font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5"
               >
                 <CheckCircle className="h-4 w-4" /> Save Metadata Changes
               </button>
@@ -271,7 +318,7 @@ export default function SettingsAndAuth({
         <div className="max-w-md mx-auto glass-panel rounded-3xl p-8 space-y-6">
           <div className="text-center space-y-1.5">
             <h3 className="font-display font-extrabold text-2xl text-white">Sign In to Workspace</h3>
-            <p className="text-gray-400 text-xs">Enter credentials to restore saved files and premium API credits.</p>
+            <p className="text-gray-400 text-xs">Enter credentials to restore saved files and workspace preferences.</p>
           </div>
 
           <form onSubmit={handleMockLogin} className="space-y-4 text-xs text-gray-300">
@@ -293,13 +340,7 @@ export default function SettingsAndAuth({
             <div className="space-y-1">
               <div className="flex justify-between items-center">
                 <label className="text-gray-400">Password</label>
-                <button 
-                  type="button" 
-                  onClick={() => showToast("✓ A mock reset signature token has been generated. Use any login to proceed.")} 
-                  className="text-[10px] text-brand-neon-blue hover:underline"
-                >
-                  Forgot password?
-                </button>
+                <button type="button" onClick={() => showToast("✓ A mock reset signature token has been generated. Use any login to proceed.", "info")} className="text-[10px] text-brand-neon-blue hover:underline">Forgot password?</button>
               </div>
               <div className="relative">
                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-gray-500" />
@@ -315,7 +356,7 @@ export default function SettingsAndAuth({
 
             <button 
               type="submit" 
-              className="w-full py-3 bg-brand-neon-blue text-brand-black font-bold text-xs rounded-xl shadow-md hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5"
+              className="w-full py-3 bg-brand-neon-blue text-brand-black font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5"
             >
               <KeyRound className="h-4 w-4" /> Sign In securely
             </button>
@@ -333,6 +374,14 @@ export default function SettingsAndAuth({
             <Chrome className="h-4 w-4 text-red-400" />
             <span>Continue with Google Secure Sign-in</span>
           </button>
+        </div>
+      )}
+
+      {/* Dynamic Toast Alerts */}
+      {toast && (
+        <div className="fixed bottom-5 right-5 z-50 flex items-center gap-3 bg-brand-graphite border border-brand-neon-blue/30 text-white px-4 py-3 rounded-xl shadow-lg shadow-brand-neon-blue/10 animate-fade-in transition-all">
+          <CheckCircle className="h-4.5 w-4.5 text-brand-neon-blue shrink-0 animate-bounce" />
+          <span className="text-xs font-semibold">{toast.message}</span>
         </div>
       )}
     </div>

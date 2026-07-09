@@ -9,11 +9,18 @@ import {
   Plus, 
   Trash2, 
   UserPlus, 
+  CheckCircle, 
   Sliders, 
+  RefreshCw, 
   BarChart,
-  AlertTriangle
+  User,
+  AlertTriangle,
+  Flame,
+  Clock,
+  Briefcase
 } from "lucide-react";
 import { PlatformState, UserProfile, BlogPost } from "../app/types";
+import { sanitizeInput, validateEmail } from "../utils/security";
 
 interface AdminPanelProps {
   state: PlatformState;
@@ -22,7 +29,12 @@ interface AdminPanelProps {
 
 export default function AdminPanel({ state, onUpdateState }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<"users" | "blog" | "metrics">("metrics");
-  const [alertMsg, setAlertMsg] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+
+  const showToast = (message: string, type: "success" | "error" | "info" = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
 
   // Add User State Form
   const [userForm, setUserForm] = useState({
@@ -45,12 +57,23 @@ export default function AdminPanel({ state, onUpdateState }: AdminPanelProps) {
   // Add User Handler
   const handleAddUser = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userForm.name || !userForm.email) return;
+    const safeName = sanitizeInput(userForm.name);
+    const safeEmail = sanitizeInput(userForm.email);
+
+    if (!safeName || !safeEmail) {
+      showToast("Both name and email are required fields.", "error");
+      return;
+    }
+
+    if (!validateEmail(safeEmail)) {
+      showToast("Please enter a valid, safe email address format.", "error");
+      return;
+    }
 
     const newUser: UserProfile = {
       uid: `usr-${Date.now()}`,
-      displayName: userForm.name,
-      email: userForm.email,
+      displayName: safeName,
+      email: safeEmail,
       role: userForm.role,
       subscription: userForm.subscription,
       createdAt: new Date().toISOString()
@@ -62,7 +85,7 @@ export default function AdminPanel({ state, onUpdateState }: AdminPanelProps) {
     });
 
     setUserForm({ name: "", email: "", role: "user", subscription: "free" });
-    showToast("✓ Mock user created and successfully deployed to secure client-side registry!");
+    showToast("✓ Mock user created and successfully deployed to secure client-side registry!", "success");
   };
 
   // Toggle User Plan Handler
@@ -87,16 +110,27 @@ export default function AdminPanel({ state, onUpdateState }: AdminPanelProps) {
   // Add Blog Post Handler
   const handleAddBlog = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!blogForm.title || !blogForm.content) return;
+    
+    const safeTitle = sanitizeInput(blogForm.title);
+    const safeExcerpt = sanitizeInput(blogForm.excerpt);
+    const safeContent = sanitizeInput(blogForm.content);
+    const safeCategory = sanitizeInput(blogForm.category);
+    const safeReadTime = sanitizeInput(blogForm.readTime);
+    const safeAuthor = sanitizeInput(blogForm.author);
+
+    if (!safeTitle || !safeContent) {
+      showToast("Title and content are required to publish.", "error");
+      return;
+    }
 
     const newPost: BlogPost = {
       id: `post-${Date.now()}`,
-      title: blogForm.title,
-      excerpt: blogForm.excerpt || blogForm.content.slice(0, 100) + "...",
-      content: blogForm.content,
-      category: blogForm.category,
-      readTime: blogForm.readTime,
-      author: blogForm.author,
+      title: safeTitle,
+      excerpt: safeExcerpt || safeContent.slice(0, 100) + "...",
+      content: safeContent,
+      category: safeCategory,
+      readTime: safeReadTime,
+      author: safeAuthor,
       date: new Date().toISOString().split("T")[0],
       createdAt: new Date().toISOString()
     };
@@ -114,7 +148,7 @@ export default function AdminPanel({ state, onUpdateState }: AdminPanelProps) {
       readTime: "5 min",
       author: "AI Toolbox Pro Admin"
     });
-    showToast("✓ Tactical SEO guide drafted and published successfully!");
+    showToast("✓ Tactical SEO guide drafted and published successfully!", "success");
   };
 
   // Delete Blog Post Handler
@@ -123,11 +157,6 @@ export default function AdminPanel({ state, onUpdateState }: AdminPanelProps) {
       ...state,
       blogs: state.blogs.filter(b => b.id !== postId)
     });
-  };
-
-  const showToast = (msg: string) => {
-    setAlertMsg(msg);
-    setTimeout(() => setAlertMsg(null), 4000);
   };
 
   return (
@@ -140,7 +169,7 @@ export default function AdminPanel({ state, onUpdateState }: AdminPanelProps) {
             SaaS Platform Admin Control
           </h1>
           <p className="text-gray-400 text-xs">
-            Simulate administrative control, manage mock user accounts, toggle subscriptions, and publish SEO career blog posts.
+            Simulate administrative control, manage mock user accounts, toggle simulated plans, and publish SEO career blog posts.
           </p>
         </div>
 
@@ -165,13 +194,6 @@ export default function AdminPanel({ state, onUpdateState }: AdminPanelProps) {
           </button>
         </div>
       </div>
-
-      {/* Floating Status Toast */}
-      {alertMsg && (
-        <div className="fixed bottom-6 right-6 z-50 p-4 rounded-xl bg-brand-neon-blue/15 border border-brand-neon-blue/40 text-brand-neon-blue text-xs font-semibold shadow-2xl animate-fade-in-up">
-          {alertMsg}
-        </div>
-      )}
 
       {/* =========================================================================
           TAB 1: SaaS METRICS & REVENUE
@@ -263,7 +285,7 @@ export default function AdminPanel({ state, onUpdateState }: AdminPanelProps) {
                   value={userForm.email} 
                   onChange={(e) => setUserForm({...userForm, email: e.target.value})} 
                   placeholder="aliza@example.com"
-                  className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none"
+                  className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue"
                   required
                 />
               </div>
@@ -295,7 +317,7 @@ export default function AdminPanel({ state, onUpdateState }: AdminPanelProps) {
 
               <button 
                 type="submit" 
-                className="w-full py-2.5 bg-brand-neon-blue text-brand-black font-bold rounded-xl flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity"
+                className="w-full py-2.5 bg-brand-neon-blue text-brand-black font-bold rounded-xl flex items-center justify-center gap-1.5"
               >
                 <Plus className="h-4 w-4" /> Deploy Mock Account
               </button>
@@ -307,29 +329,30 @@ export default function AdminPanel({ state, onUpdateState }: AdminPanelProps) {
             <div className="space-y-3.5 text-xs">
               {state.users.map((usr) => (
                 <div 
-                  key={usr.uid || usr.email} 
+                  key={usr.uid} 
                   className="p-3.5 bg-brand-black border border-white/5 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3"
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-white text-sm">{usr.displayName || usr.name || "Anonymous User"}</span>
+                      <span className="font-semibold text-white text-sm">{usr.displayName}</span>
                       <span className={`px-2 py-0.5 rounded text-[9px] font-mono tracking-wide uppercase font-bold ${usr.role === 'admin' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-brand-neon-blue/10 text-brand-neon-blue border border-brand-neon-blue/20'}`}>
                         {usr.role}
                       </span>
                     </div>
-                    <p className="text-[10px] text-gray-500 font-mono font-medium">Email: {usr.email} • Created: {new Date(usr.createdAt).toLocaleDateString()}</p>
+                    <p className="text-[10px] text-gray-500 font-mono">Email: {usr.email} • Created: {new Date(usr.createdAt).toLocaleDateString()}</p>
                   </div>
 
                   <div className="flex items-center gap-2 self-end sm:self-auto font-mono text-[10px]">
                     <button 
-                      onClick={() => usr.uid && handleTogglePlan(usr.uid)}
+                      onClick={() => handleTogglePlan(usr.uid || "")}
                       className={`h-7 px-3 rounded-lg border transition-all ${usr.subscription === 'pro' ? 'bg-brand-purple/20 border-brand-purple/40 text-brand-purple font-bold' : 'bg-brand-graphite border-white/5 text-gray-400'}`}
+                      title="Toggle simulated plans for future models"
                     >
-                      Plan: {(usr.subscription || "free").toUpperCase()}
+                      Demo Plan: {(usr.subscription || "free").toUpperCase()}
                     </button>
                     
                     <button 
-                      onClick={() => usr.uid && handleDeleteUser(usr.uid)}
+                      onClick={() => handleDeleteUser(usr.uid || "")}
                       className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                       title="Revoke access"
                     >
@@ -373,7 +396,7 @@ export default function AdminPanel({ state, onUpdateState }: AdminPanelProps) {
                   value={blogForm.excerpt} 
                   onChange={(e) => setBlogForm({...blogForm, excerpt: e.target.value})} 
                   placeholder="Summary for search result snippet"
-                  className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none"
+                  className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue"
                 />
               </div>
 
@@ -397,7 +420,7 @@ export default function AdminPanel({ state, onUpdateState }: AdminPanelProps) {
                     type="text" 
                     value={blogForm.readTime} 
                     onChange={(e) => setBlogForm({...blogForm, readTime: e.target.value})} 
-                    className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none font-sans"
+                    className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue"
                   />
                 </div>
               </div>
@@ -409,14 +432,14 @@ export default function AdminPanel({ state, onUpdateState }: AdminPanelProps) {
                   value={blogForm.content} 
                   onChange={(e) => setBlogForm({...blogForm, content: e.target.value})} 
                   placeholder="Draft full article paragraphs..."
-                  className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue focus:outline-none font-sans"
+                  className="w-full p-2.5 bg-brand-black border border-white/5 rounded-xl text-white focus:border-brand-neon-blue font-sans"
                   required
                 />
               </div>
 
               <button 
                 type="submit" 
-                className="w-full py-2.5 bg-brand-neon-blue text-brand-black font-bold rounded-xl flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity"
+                className="w-full py-2.5 bg-brand-neon-blue text-brand-black font-bold rounded-xl flex items-center justify-center gap-1.5"
               >
                 <Plus className="h-4 w-4" /> Publish Blog Post
               </button>
@@ -453,6 +476,14 @@ export default function AdminPanel({ state, onUpdateState }: AdminPanelProps) {
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Dynamic Toast Alerts */}
+      {toast && (
+        <div className="fixed bottom-5 right-5 z-50 flex items-center gap-3 bg-brand-graphite border border-brand-neon-blue/30 text-white px-4 py-3 rounded-xl shadow-lg shadow-brand-neon-blue/10 animate-fade-in transition-all">
+          <CheckCircle className="h-4.5 w-4.5 text-brand-neon-blue shrink-0 animate-bounce" />
+          <span className="text-xs font-semibold">{toast.message}</span>
         </div>
       )}
     </div>

@@ -33,6 +33,7 @@ export function exportToCSV(filename: string, rows: string[][]) {
 }
 
 export function exportToDOCX(filename: string, title: string, content: string) {
+  // Creating a robust Rich HTML document that Word processes beautifully
   const html = `
     <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
     <head>
@@ -98,7 +99,7 @@ export function exportToPDF(filename: string, title: string, rawContent: string,
   doc.setFont("Helvetica", "normal");
   doc.setFontSize(10);
   doc.setTextColor(200, 200, 200);
-  doc.text("AI TOOLBOX PRO - NEXTJS EXPORT", margin, 32);
+  doc.text("AI TOOLBOX PRO - SaaS PLATFORM EXPORT", margin, 32);
 
   // Body content
   doc.setTextColor(51, 51, 51);
@@ -109,6 +110,7 @@ export function exportToPDF(filename: string, title: string, rawContent: string,
   if (isResume) {
     try {
       const data = JSON.parse(rawContent);
+      // Resume specific gorgeous formatting
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(16);
       doc.setTextColor(11, 11, 11);
@@ -121,13 +123,15 @@ export function exportToPDF(filename: string, title: string, rawContent: string,
       doc.text(`${data.email || ""}   |   ${data.phone || ""}`, margin, currentY);
       currentY += 10;
 
+      // Divider
       doc.setDrawColor(230, 230, 230);
       doc.line(margin, currentY, margin + contentWidth, currentY);
       currentY += 8;
 
+      // Professional Summary
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(12);
-      doc.setTextColor(124, 58, 237);
+      doc.setTextColor(124, 58, 237); // Purple accent
       doc.text("PROFESSIONAL SUMMARY", margin, currentY);
       currentY += 6;
 
@@ -138,6 +142,7 @@ export function exportToPDF(filename: string, title: string, rawContent: string,
       doc.text(summaryLines, margin, currentY);
       currentY += summaryLines.length * 5 + 6;
 
+      // Professional Experience
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(12);
       doc.setTextColor(124, 58, 237);
@@ -151,6 +156,7 @@ export function exportToPDF(filename: string, title: string, rawContent: string,
       doc.text(expLines, margin, currentY);
       currentY += expLines.length * 5 + 6;
 
+      // Core Skills
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(12);
       doc.setTextColor(124, 58, 237);
@@ -163,17 +169,21 @@ export function exportToPDF(filename: string, title: string, rawContent: string,
       const skillsLines = doc.splitTextToSize(data.skills || "", contentWidth);
       doc.text(skillsLines, margin, currentY);
     } catch (e) {
+      // Fallback to standard flow
       isResume = false;
     }
   }
 
   if (!isResume) {
+    // Normal text lines
     const splitLines = doc.splitTextToSize(rawContent, contentWidth);
+    let linesPerPage = Math.floor((pageHeight - margin - currentY) / 6);
+
     let lineIndex = 0;
     while (lineIndex < splitLines.length) {
       if (currentY > pageHeight - margin) {
         doc.addPage();
-        currentY = 25;
+        currentY = 25; // Reset Y on new page
       }
       doc.text(splitLines[lineIndex], margin, currentY);
       currentY += 6;
@@ -181,10 +191,11 @@ export function exportToPDF(filename: string, title: string, rawContent: string,
     }
   }
 
+  // Footer on current page
   doc.setFont("Helvetica", "normal");
   doc.setFontSize(8);
   doc.setTextColor(150, 150, 150);
-  doc.text("Downloaded from AI Toolbox Pro (Next.js Version)", margin, pageHeight - 10);
+  doc.text("Downloaded from AI Toolbox Pro (https://ai.studio/build)", margin, pageHeight - 10);
 
   doc.save(filename.endsWith(".pdf") ? filename : `${filename}.pdf`);
 }
